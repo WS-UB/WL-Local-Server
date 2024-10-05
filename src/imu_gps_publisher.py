@@ -19,6 +19,7 @@ BROKER = "128.205.218.189"
 PORT = 1883
 TOPIC = "test/topic"
 CLIENT_ID = "retrieve-imu-data"
+MARGIN = 500  # In ms
 
 
 class IMU_GPS_publisher:
@@ -31,6 +32,7 @@ class IMU_GPS_publisher:
         self.gyroscope_list = []
         self.GPS_list = []
         self.CLIENT = None
+        global MARGIN
 
     def connect_mqtt(self):
         def on_connect(client, userdata, flags, rc):
@@ -96,7 +98,7 @@ class IMU_GPS_publisher:
                 self.accelerator_list = []
                 self.gyroscope_list = []
                 self.GPS_list = []
-                if timestamp_avg <= 100:
+                if timestamp_avg <= MARGIN:
                     self.publish(client=self.CLIENT, msg=str(gyro_and_accel))
 
         client.subscribe(self.topic)
