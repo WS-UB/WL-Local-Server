@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:padding="30dp"
+    tools:context="com.example.wlmap.MainActivity">
+
+<!--    We align the fill-in features at the center of the screen-->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/send_data_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="60dp"
+            android:text="Send User's Location to Server"
+            android:textSize="20sp" />
+
+        <!-- Create a space for filling in Server ID-->
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:autofillHints=""
+            android:hint="Server ID"
+            android:textColor="@color/black"
+            android:textColorHint="@color/black"
+            android:textSize="20sp"
+            android:background="@drawable/rounded_corner_box"
+            android:padding="12dp"
+            android:inputType="text"
+            android:id="@+id/fill_server_id"/>
+
+        <!-- Create a space for filling in User ID-->
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:background="@drawable/rounded_corner_box"
+            android:autofillHints="username"
+            android:hint="User ID"
+            android:inputType="text"
+            android:padding="12dp"
+            android:textColor="@color/black"
+            android:textColorHint="@color/black"
+            android:textSize="20sp"
+            android:id="@+id/fill_user_id"/>
+
+        <!-- Create a space for filling in Password-->
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:autofillHints="password"
+            android:hint="Password"
+            android:textColor="@color/black"
+            android:textColorHint="@color/black"
+            android:textSize="20sp"
+            android:background="@drawable/rounded_corner_box"
+            android:padding="12dp"
+            android:inputType="textPassword"
+            android:id="@+id/fill_password"/>
+
+        <!-- Create a space for filling in Comment-->
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:hint="Comment"
+            android:textColor="@color/black"
+            android:textColorHint="@color/black"
+            android:textSize="20sp"
+            android:background="@drawable/rounded_corner_box"
+            android:padding="12dp"
+            android:inputType="text"
+            android:id="@+id/fill_comment"/>
+
+        <!-- Submit Button -->
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/send_data_button"
+            android:text="Send"
+            android:padding="10dp"
+            android:layout_marginTop="32dp"
+            android:textSize="16sp"/>
+
+
+
+    </LinearLayout>
+
+</RelativeLayout>

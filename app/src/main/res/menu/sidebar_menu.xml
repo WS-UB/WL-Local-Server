@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:showIn = "navigation_view">
+
+    <!-- We are creating a main menu with a clickable sidebar that
+    also has four different buttons: Home, WLMap, Data, Settings -->
+    <group
+        android:checkableBehavior="single"> <!--This line restricts the buttons at the sidebar to be clicked individually instead of simultaneously -->
+
+        <!--  * Each buttons requires an ID, icon, and a title.-->
+        <!--  Create the first button on the sidebar, which is the Home button-->
+        <item
+            android:id="@+id/nav_home"
+            android:icon="@drawable/ic_sidebar_home"
+            android:title="@string/name_sidebar_home" />
+
+        <!--  Create the second button on the sidebar, which is the WLMap button-->
+        <item
+            android:id="@+id/nav_wlmap"
+            android:icon="@drawable/ic_sidebar_map"
+            android:title="@string/name_sidebar_map" />
+
+        <!--  Create the third button on the sidebar, which is the Data button-->
+        <item
+            android:id="@+id/nav_data"
+            android:icon="@drawable/ic_sidebar_data"
+            android:title="@string/name_sidebar_data" />
+
+        <!--  Create the fourth button on the sidebar, which is the Setting button-->
+        <item
+            android:id="@+id/nav_setting"
+            android:icon="@drawable/ic_sidebar_settings"
+            android:title="@string/name_sidebar_setting" />
+    </group>
+
+    <!-- In addition, we are also creating a log out button to exit our account when we're done using the app -->
+    <item
+        android:title="">
+        <menu>
+            <item
+                android:id="@+id/nav_logout"
+                android:icon="@drawable/ic_sidebar_logout"
+                android:title="@string/name_sidebar_logout"/>
+        </menu>
+    </item>
+
+</menu>

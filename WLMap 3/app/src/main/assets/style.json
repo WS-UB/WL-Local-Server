@@ -1,0 +1,803 @@
+{
+    "version": 8,
+    "name": "WLMap",
+    "metadata": {
+        "mapbox:autocomposite": true,
+        "mapbox:type": "template",
+        "mapbox:sdk-support": {
+            "js": "3.1.0",
+            "android": "11.2.0",
+            "ios": "11.2.0"
+        },
+        "mapbox:groups": {
+            "Buildings, built": {"collapsed": true, "name": "Buildings, built"},
+            "Road network, tunnels": {
+                "collapsed": true,
+                "name": "Road network, tunnels"
+            },
+            "Road network, surface": {
+                "collapsed": true,
+                "name": "Road network, surface"
+            },
+            "Road network, bridges": {
+                "collapsed": true,
+                "name": "Road network, bridges"
+            },
+            "Buildings, building-labels": {
+                "collapsed": true,
+                "name": "Buildings, building-labels"
+            },
+            "Buildings, extruded": {
+                "collapsed": false,
+                "name": "Buildings, extruded"
+            }
+        },
+        "mapbox:thumb": "data:image/webp;base64,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",
+        "mapbox:uiParadigm": "layers",
+        "mapbox:decompiler": {
+            "id": "clti4urul00l401phgs9i3cqu",
+            "strata": [
+                {
+                    "id": "clti4urul00l401phgs9i3cqu",
+                    "order": [
+                        "background",
+                        ["buildings", "built"],
+                        ["road-network", "tunnels"],
+                        ["road-network", "surface"],
+                        ["road-network", "bridges"],
+                        ["buildings", "extruded"],
+                        ["buildings", "building-labels"],
+                        ["road-network", "road-labels"],
+                        "davis01",
+                        "davis01labels",
+                        "davis03",
+                        "davis03labels",
+                        "davis03doors",
+                        "davis01doors"
+                    ]
+                }
+            ],
+            "overrides": {
+                "buildings": {
+                    "building-underground": {
+                        "paint": {"fill-color": "hsl(260, 0%, 0%)"}
+                    },
+                    "building-extrusion": {
+                        "paint": {"fill-extrusion-color": "hsl(260, 83%, 56%)"}
+                    },
+                    "building-number-label": {
+                        "paint": {"text-color": "hsl(260, 0%, 0%)"}
+                    },
+                    "block-number-label": {
+                        "paint": {"text-color": "hsl(260, 0%, 0%)"}
+                    },
+                    "building-entrance": {
+                        "paint": {"text-color": "hsl(260, 0%, 0%)"}
+                    },
+                    "building": {
+                        "paint": {"fill-outline-color": "rgba(0, 0, 0, 0.8)"}
+                    }
+                }
+            },
+            "components": {"buildings": "18.0.0", "road-network": "18.0.0"},
+            "propConfig": {
+                "buildings": {
+                    "colorBuilding": "#e8e8e8",
+                    "colorBase": "#1c1c1c",
+                    "buildingStyle": "2D",
+                    "underground": false,
+                    "houseNumbers": false
+                },
+                "road-network": {
+                    "colorBase": "#1c1c1c",
+                    "labels": false,
+                    "minorRoads": true,
+                    "fadeOutRoadsOnZoom": false,
+                    "roadNetwork": "Simple"
+                }
+            }
+        }
+    },
+    "center": [-78.78709798162615, 43.00266464501026],
+    "zoom": 19.05798648332453,
+    "bearing": 0,
+    "pitch": 0,
+    "lights": [],
+    "sources": {
+        "composite": {
+            "url": "mapbox://mapbox.mapbox-streets-v8,cgvarghe.9fttwm2n,cgvarghe.a68htg3z,cgvarghe.dcl88kr7,cgvarghe.d1qnfuke",
+            "type": "vector"
+        }
+    },
+    "sprite": "mapbox://sprites/cgvarghe/clti4urul00l401phgs9i3cqu/avhlezbtmnbszpwf0dw2pxgil",
+    "glyphs": "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
+    "projection": {"name": "equalEarth"},
+    "layers": [
+        {
+            "id": "background",
+            "type": "background",
+            "paint": {"background-color": "hsl(0, 100%, 100%)"}
+        },
+        {
+            "id": "building",
+            "type": "fill",
+            "metadata": {
+                "mapbox:featureComponent": "buildings",
+                "mapbox:group": "Buildings, built"
+            },
+            "source": "composite",
+            "source-layer": "building",
+            "minzoom": 15,
+            "filter": [
+                "all",
+                ["!=", ["get", "type"], "building:part"],
+                ["==", ["get", "underground"], "false"]
+            ],
+            "layout": {},
+            "paint": {
+                "fill-color": "#e8e8e8",
+                "fill-opacity": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    15,
+                    0,
+                    16,
+                    1
+                ],
+                "fill-outline-color": "rgba(0, 0, 0, 0.8)"
+            }
+        },
+        {
+            "id": "tunnel-simple",
+            "type": "line",
+            "metadata": {
+                "mapbox:featureComponent": "road-network",
+                "mapbox:group": "Road network, tunnels"
+            },
+            "source": "composite",
+            "source-layer": "road",
+            "minzoom": 13,
+            "filter": [
+                "all",
+                ["==", ["get", "structure"], "tunnel"],
+                [
+                    "step",
+                    ["zoom"],
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "secondary",
+                            "tertiary",
+                            "street",
+                            "street_limited",
+                            "primary_link",
+                            "track"
+                        ],
+                        true,
+                        false
+                    ],
+                    14,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "primary_link",
+                            "secondary",
+                            "secondary_link",
+                            "tertiary",
+                            "tertiary_link",
+                            "street",
+                            "street_limited",
+                            "service",
+                            "track"
+                        ],
+                        true,
+                        false
+                    ]
+                ],
+                ["==", ["geometry-type"], "LineString"]
+            ],
+            "paint": {
+                "line-width": [
+                    "interpolate",
+                    ["exponential", 1.5],
+                    ["zoom"],
+                    13,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        4,
+                        ["secondary", "tertiary"],
+                        2.5,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "street",
+                            "street_limited",
+                            "primary_link"
+                        ],
+                        1,
+                        0.5
+                    ],
+                    18,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        32,
+                        ["secondary", "tertiary"],
+                        26,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "street",
+                            "street_limited",
+                            "primary_link"
+                        ],
+                        18,
+                        12
+                    ],
+                    22,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        320,
+                        ["secondary", "tertiary"],
+                        260,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "primary_link",
+                            "street",
+                            "street_limited"
+                        ],
+                        180,
+                        120
+                    ]
+                ],
+                "line-color": "rgb(59, 59, 59)"
+            }
+        },
+        {
+            "id": "road-simple",
+            "type": "line",
+            "metadata": {
+                "mapbox:featureComponent": "road-network",
+                "mapbox:group": "Road network, surface"
+            },
+            "source": "composite",
+            "source-layer": "road",
+            "minzoom": 5,
+            "filter": [
+                "all",
+                [
+                    "step",
+                    ["zoom"],
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk"],
+                        true,
+                        false
+                    ],
+                    6,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        true,
+                        false
+                    ],
+                    8,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary", "secondary"],
+                        true,
+                        false
+                    ],
+                    10,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "trunk",
+                            "primary",
+                            "secondary",
+                            "tertiary",
+                            "motorway_link",
+                            "trunk_link"
+                        ],
+                        true,
+                        false
+                    ],
+                    11,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "secondary",
+                            "tertiary",
+                            "street"
+                        ],
+                        true,
+                        false
+                    ],
+                    12,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "secondary",
+                            "tertiary",
+                            "street",
+                            "street_limited",
+                            "primary_link"
+                        ],
+                        true,
+                        false
+                    ],
+                    13,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "secondary",
+                            "tertiary",
+                            "street",
+                            "street_limited",
+                            "primary_link",
+                            "track"
+                        ],
+                        true,
+                        false
+                    ],
+                    14,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "primary_link",
+                            "secondary",
+                            "secondary_link",
+                            "tertiary",
+                            "tertiary_link",
+                            "street",
+                            "street_limited",
+                            "service",
+                            "track"
+                        ],
+                        true,
+                        false
+                    ]
+                ],
+                ["match", ["get", "structure"], ["none", "ford"], true, false],
+                ["==", ["geometry-type"], "LineString"]
+            ],
+            "layout": {
+                "line-cap": ["step", ["zoom"], "butt", 14, "round"],
+                "line-join": ["step", ["zoom"], "miter", 14, "round"]
+            },
+            "paint": {
+                "line-width": [
+                    "interpolate",
+                    ["exponential", 1.5],
+                    ["zoom"],
+                    5,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        0.75,
+                        ["secondary", "tertiary"],
+                        0.1,
+                        0
+                    ],
+                    13,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        4,
+                        ["secondary", "tertiary"],
+                        2.5,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "primary_link",
+                            "street",
+                            "street_limited"
+                        ],
+                        1,
+                        0.5
+                    ],
+                    18,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        32,
+                        ["secondary", "tertiary"],
+                        26,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "primary_link",
+                            "street",
+                            "street_limited"
+                        ],
+                        18,
+                        10
+                    ],
+                    22,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        320,
+                        ["secondary", "tertiary"],
+                        260,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "primary_link",
+                            "street",
+                            "street_limited"
+                        ],
+                        180,
+                        100
+                    ]
+                ],
+                "line-color": "rgb(59, 59, 59)"
+            }
+        },
+        {
+            "id": "bridge-case-simple",
+            "type": "line",
+            "metadata": {
+                "mapbox:featureComponent": "road-network",
+                "mapbox:group": "Road network, bridges"
+            },
+            "source": "composite",
+            "source-layer": "road",
+            "minzoom": 13,
+            "filter": [
+                "all",
+                ["==", ["get", "structure"], "bridge"],
+                [
+                    "step",
+                    ["zoom"],
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "secondary",
+                            "tertiary",
+                            "street",
+                            "street_limited",
+                            "primary_link",
+                            "track"
+                        ],
+                        true,
+                        false
+                    ],
+                    14,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "primary_link",
+                            "secondary",
+                            "secondary_link",
+                            "tertiary",
+                            "tertiary_link",
+                            "street",
+                            "street_limited",
+                            "service",
+                            "track"
+                        ],
+                        true,
+                        false
+                    ]
+                ],
+                ["==", ["geometry-type"], "LineString"]
+            ],
+            "paint": {
+                "line-width": [
+                    "interpolate",
+                    ["exponential", 1.5],
+                    ["zoom"],
+                    13,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        6,
+                        ["secondary", "tertiary"],
+                        4,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "street",
+                            "street_limited",
+                            "primary_link"
+                        ],
+                        2.5,
+                        1.25
+                    ],
+                    18,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        36,
+                        ["secondary", "tertiary"],
+                        30,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "street",
+                            "street_limited",
+                            "primary_link"
+                        ],
+                        22,
+                        16
+                    ],
+                    22,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        360,
+                        ["secondary", "tertiary"],
+                        300,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "primary_link",
+                            "street",
+                            "street_limited"
+                        ],
+                        220,
+                        160
+                    ]
+                ],
+                "line-color": "rgb(38, 38, 38)"
+            }
+        },
+        {
+            "id": "bridge-simple",
+            "type": "line",
+            "metadata": {
+                "mapbox:featureComponent": "road-network",
+                "mapbox:group": "Road network, bridges"
+            },
+            "source": "composite",
+            "source-layer": "road",
+            "minzoom": 13,
+            "filter": [
+                "all",
+                ["==", ["get", "structure"], "bridge"],
+                [
+                    "step",
+                    ["zoom"],
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk"],
+                        true,
+                        false
+                    ],
+                    13,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "secondary",
+                            "tertiary",
+                            "street",
+                            "street_limited",
+                            "primary_link",
+                            "track"
+                        ],
+                        true,
+                        false
+                    ],
+                    14,
+                    [
+                        "match",
+                        ["get", "class"],
+                        [
+                            "motorway",
+                            "motorway_link",
+                            "trunk",
+                            "trunk_link",
+                            "primary",
+                            "primary_link",
+                            "secondary",
+                            "secondary_link",
+                            "tertiary",
+                            "tertiary_link",
+                            "street",
+                            "street_limited",
+                            "service",
+                            "track"
+                        ],
+                        true,
+                        false
+                    ]
+                ],
+                ["==", ["geometry-type"], "LineString"]
+            ],
+            "layout": {"line-cap": ["step", ["zoom"], "butt", 14, "round"]},
+            "paint": {
+                "line-width": [
+                    "interpolate",
+                    ["exponential", 1.5],
+                    ["zoom"],
+                    13,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        4,
+                        ["secondary", "tertiary"],
+                        2.5,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "street",
+                            "street_limited",
+                            "primary_link"
+                        ],
+                        1,
+                        0.5
+                    ],
+                    18,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        32,
+                        ["secondary", "tertiary"],
+                        26,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "street",
+                            "street_limited",
+                            "primary_link"
+                        ],
+                        18,
+                        12
+                    ],
+                    22,
+                    [
+                        "match",
+                        ["get", "class"],
+                        ["motorway", "trunk", "primary"],
+                        320,
+                        ["secondary", "tertiary"],
+                        260,
+                        [
+                            "motorway_link",
+                            "trunk_link",
+                            "primary_link",
+                            "street",
+                            "street_limited"
+                        ],
+                        180,
+                        120
+                    ]
+                ],
+                "line-color": "rgb(59, 59, 59)"
+            }
+        },
+        {
+            "id": "davis01",
+            "type": "fill",
+            "source": "composite",
+            "source-layer": "DAVIS01_Poly-46dzby",
+            "paint": {"fill-color": "#7e7c77", "fill-outline-color": "#3b3b3b"}
+        },
+        {
+            "id": "davis01labels",
+            "type": "symbol",
+            "source": "composite",
+            "source-layer": "DAVIS01_Poly-46dzby",
+            "layout": {"text-field": ["to-string", ["get", "name"]]},
+            "paint": {"text-color": "hsl(43, 100%, 0%)"}
+        },
+        {
+            "id": "davis03",
+            "type": "fill",
+            "source": "composite",
+            "source-layer": "DAVIS03_Poly-3rn7v9",
+            "paint": {
+                "fill-color": "hsl(43, 3%, 48%)",
+                "fill-outline-color": "hsl(0, 0%, 23%)"
+            }
+        },
+        {
+            "id": "davis03labels",
+            "type": "symbol",
+            "source": "composite",
+            "source-layer": "DAVIS03_Poly-3rn7v9",
+            "layout": {"text-field": ["to-string", ["get", "name"]]},
+            "paint": {"text-color": "hsl(43, 100%, 0%)"}
+        },
+        {
+            "id": "davis03doors",
+            "type": "symbol",
+            "source": "composite",
+            "source-layer": "door_icons_DAVIS03-7nj5iu",
+            "layout": {"icon-image": "exit-door-svgrepo-com", "icon-size": 0.2},
+            "paint": {"icon-opacity": 0.9}
+        },
+        {
+            "id": "davis01doors",
+            "type": "symbol",
+            "source": "composite",
+            "source-layer": "door_icons_DAVIS01-bbokrl",
+            "layout": {"icon-image": "exit-door-svgrepo-com", "icon-size": 0.2},
+            "paint": {"icon-opacity": 0.9}
+        }
+    ],
+    "created": "2024-03-08T04:04:39.165Z",
+    "modified": "2024-04-28T07:47:03.056Z",
+    "id": "clti4urul00l401phgs9i3cqu",
+    "owner": "cgvarghe",
+    "visibility": "private",
+    "protected": false,
+    "draft": false
+}
