@@ -7,7 +7,6 @@ This repo provides code to stream and synchronize IMU, GPS, and WiFi from the MQ
 1. [Usage](#usage)
 2. [Application Information](#application-information)
 3. [Set Up](#set-up)
-4. [Citations](#citations)
 
 ### Usage:
 This project directory consists of two Python scripts:
