@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
-
 from paho.mqtt import client as mqtt_client
+from minio_script import store_received_data, list_objects_in_bucket
+import json
 
 # import rospy
 # import urllib.parse
@@ -14,6 +14,8 @@ from paho.mqtt import client as mqtt_client
 # import threading
 # import signal
 # import sys
+
+# RUN "minio server /Users/harrisonmoore/data" in your terminal to start server
 
 BROKER = "128.205.218.189"
 PORT = 1883
@@ -75,10 +77,10 @@ class IMU_GPS_publisher:
             if data[0] == "GPS":  # Change to another identifier at a later point
                 # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
                 tag = data[0]
-                lat = data[1]
-                long = data[2]
-                time_stamp = data[3]
-                self.GPS_list = [tag, lat, long, time_stamp]
+                time_stamp = data[1]
+                lat = data[2]
+                long = data[3]
+                self.GPS_list = [tag, time_stamp, lat, long]
             if (
                 len(self.accelerator_list) > 0
                 and len(self.gyroscope_list) > 0
@@ -91,27 +93,63 @@ class IMU_GPS_publisher:
                 ]
                 gyro_timestamp = int(self.gyroscope_list[4].split(".")[1])
                 accel_timestamp = int(self.accelerator_list[4].split(".")[1])
-                GPS_timestamp = int(self.GPS_list[3].split(".")[1])
+                GPS_timestamp = int(self.GPS_list[1].split(".")[1])
                 timestamp_avg = abs(
                     (accel_timestamp + gyro_timestamp + GPS_timestamp) / 3
                 )
-                self.accelerator_list = []
-                self.gyroscope_list = []
-                self.GPS_list = []
                 if timestamp_avg <= MARGIN:
-                    self.publish(client=self.CLIENT, msg=str(gyro_and_accel))
+                    self.publish()
 
         client.subscribe(self.topic)
         client.on_message = on_message
 
-    def publish(self, client, msg):
-        result = client.publish(self.topic, msg)
-        # result: [0, 1]
-        status = result[0]
-        if status == 0:
-            print(f"Send `{msg}` to topic `{self.topic}`")
-        else:
-            print(f"Failed to send message to topic {self.topic}")
+    def publish(self):
+        data_timestamp: str = self.GPS_list[1]
+        gyro_xyz = [
+            float(self.gyroscope_list[1]),
+            float(self.gyroscope_list[2]),
+            float(self.gyroscope_list[3]),
+        ]
+
+        accel_xyz = [
+            float(self.accelerator_list[1]),
+            float(self.accelerator_list[2]),
+            float(self.accelerator_list[3]),
+        ]
+
+        GPS_lat = float(self.GPS_list[2])
+        GPS_long = float(self.GPS_list[3])
+
+        self.accelerator_list = []
+        self.gyroscope_list = []
+        self.GPS_list = []
+
+        user_data = json.dumps(
+            {
+                "user_id": "user1",
+                "timestamp": data_timestamp,
+                "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
+                "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
+                "WiFi": {
+                    "csi_imag": 0.5,
+                    "csi_real": 0.6,
+                    "rssi": -70,
+                    "ap_id": "AP123",
+                },
+                "Channel": {
+                    "chan": 1,
+                    "channel": 36,
+                    "bw": 20,
+                    "nss": 2,
+                    "ntx": 1,
+                    "nrx": 2,
+                    "mcs": 7,
+                },
+            }
+        )
+        store_received_data(user_data)
+        list_objects_in_bucket()
+
         return
 
 
