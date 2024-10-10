@@ -4,9 +4,31 @@
 This repo provides code to stream and synchronize IMU, GPS, and WiFi from the MQTT Wiloc server. It can be used in combination with our MinIO object storage server implementation to create a testbed for building-scale WiFi sensing applications.
 
 ## Table of Contents:
-1. [Usage](#usage)
-2. [Application Information](#application-information)
-3. [Set Up](#set-up)
+1. [Problem Definition](#problem-definition)
+2. [Demographics](#demographics)
+3. [Goals and Challenges](#goals-and-challenges)
+4. [Usage](#usage)
+5. [Application Information](#application-information)
+6. [Set Up](#set-up)
+
+## Problem Definition
+
+We aim to create a stable Android mobile application for indoor navigation and WiFi-based data collection. This semester, we will focus on resolving technical issues with the data collection app, enhancing the user interface, and integrating server-side data processing using AWS. Additionally, we will develop a functional navigational interface similar to Google Maps, enabling users to track their indoor location within large buildings like malls and airports. In the long term, we aspire to deploy a fully functional, scalable system that enables seamless indoor navigation by utilizing WiFi signals and real-time data collection. By leveraging machine learning models, we will enhance accuracy in indoor positioning, ensuring privacy and efficiency through the use of hashed user data. Our goal is to provide a robust and open-source platform that can be adapted for various large-scale indoor environments.
+
+## Demographics
+
+This application will be designed and used by University at Buffalo students and faculty, with the goal being that the application is made into an open-source platform that can be adapted for various large-scale indoor environments. 
+
+## Goals and Challenges
+Our current goals for this project include:
+   - Resolving technical issues with the data collection app.
+   - Developing a functional navigational interface.
+   - Making the front-end interface easier to interact with.
+   - Storing user/device data using server integration.
+   - Integrating server-side data processing using AWS.
+   - Retrieving server-side data to update user position.
+   - Gather and store user navigation data in a database.
+   - Use stored reliable data for an A.I. training model.
 
 ### Usage:
 This project directory consists of two Python scripts:
