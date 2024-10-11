@@ -4,18 +4,27 @@ import subprocess
 import time
 from io import BytesIO
 from rf_msgs.msg import Wifi
-import paho.mqtt.client as mqtt
-
+import paho.mqtt.client as mqtt_client
+import random
 # Create MQTT publisher
 address = "128.205.218.189"  
 port = 1883  
-
+client_id = f'python-mqtt-{random.randint(0, 1000)}'
 client = mqtt.Client("client")
-
-# Connect to the broker
-client.connect(address, port)
-
 topic = "/csi"
+
+def connect_mqtt():
+    def on_connect(client, userdata, flags, rc):
+        if rc == 0:
+            print("Connected to MQTT Broker!")
+        else:
+            print("Failed to connect, return code %d\n", rc)
+
+    client = mqtt_client.Client(client_id)
+    # client.username_pw_set(username, password)
+    client.on_connect = on_connect
+    client.connect(address, port)
+    return client
 
 
 
@@ -55,6 +64,7 @@ if __name__ == "__main__":
     - receive messages of type rf_msgs.Wifi
     - Call csi_callback when you get a message
     '''
+    client = connect_mqtt()
     rospy.Subscriber("/csi", Wifi, csi_callback)
 
     #wait forever
