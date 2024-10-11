@@ -81,6 +81,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
+import okhttp3.RequestBody
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import org.json.JSONObject
 
 
 class DataCollectionFragment : Fragment(),NavigationView.OnNavigationItemSelectedListener, SensorEventListener {
@@ -1744,7 +1747,36 @@ class DataCollectionFragment : Fragment(),NavigationView.OnNavigationItemSelecte
                 }
             })
         }
+
+        // Method to send MQTT message to Elasticsearch
+        fun indexDocument(index: String, message: String) {
+            val jsonObject = JSONObject().put("message", message)
+
+            // Create the request body
+            val requestBody = RequestBody.create("application/json".toMediaTypeOrNull(), jsonObject.toString())
+
+            // Build the HTTP request to Elasticsearch
+            val request = Request.Builder()
+                .url("$esUrl/$index/_doc")  // Posting to the index in Elasticsearch
+                .post(requestBody)
+                .build()
+
+            // Execute the request asynchronously
+            okHttpClient.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    println("Failed to send data to Elasticsearch: ${e.message}")
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use {
+                        if (!response.isSuccessful) throw IOException("Unexpected code $response")
+                        println("Data sent to Elasticsearch, response: ${response.body?.string()}")
+                    }
+                }
+            })
+        }
     }
+
 
     private fun initMQTTHandler() {
         val esUrl = "http://128.205.218.189:9200"  // Change this to 10.0.2.2 if using an emulator
@@ -1752,23 +1784,28 @@ class DataCollectionFragment : Fragment(),NavigationView.OnNavigationItemSelecte
         mqttHandler = MqttHandler()
         mqttHandler.connect(serverUri, clientId, esUrl, esIndex)
         mqttHandler.subscribe("test/topic")
-        mqttHandler.onMessageReceived = { message ->
-            val server_runnable: Runnable = Runnable {
-                Log.e("SERVER", message)
-            }
-            val thread: Thread = Thread(server_runnable)
-            thread.start()
-        }
-        // Publish a test message
-        publishTestMessage(mqttHandler)
 
         // Initialize ElasticsearchHandler
         val elasticsearchHandler = ElasticsearchHandler(esUrl)
 
-        // Check the document count in Elasticsearch
+        mqttHandler.onMessageReceived = { message ->
+            val server_runnable: Runnable = Runnable {
+                Log.e("SERVER", message)
+
+                // Send received MQTT message to Elasticsearch
+                elasticsearchHandler.indexDocument(esIndex, message)
+            }
+            val thread: Thread = Thread(server_runnable)
+            thread.start()
+        }
+
+        // Publish a test message (if needed for debugging)
+        publishTestMessage(mqttHandler)
+
+        // Check the document count in Elasticsearch (optional)
         elasticsearchHandler.checkDocumentCount(esIndex)
 
-        // Retrieve documents from Elasticsearch
+        // Retrieve documents from Elasticsearch (optional)
         elasticsearchHandler.retrieveDocuments(esIndex)
     }
 
