@@ -20,6 +20,7 @@ import json
 BROKER = "128.205.218.189"
 PORT = 1883
 TOPIC = "test/topic"
+WIFI = "/csi"
 CLIENT_ID = "retrieve-imu-data"
 MARGIN = 500  # In ms
 
@@ -56,34 +57,39 @@ class IMU_GPS_publisher:
         def on_message(client, userdata, msg):
             global GPS_LIST
             data = msg.payload.decode().split(",")
-            if (
-                data[0] == "accelerator"
-            ):  # Change to another identifier at a later point
-                # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
-                tag = "acelerometer_data"
-                x = data[1]
-                y = data[2]
-                z = data[3]
-                time_stamp = data[4]
-                self.accelerator_list = [tag, x, y, z, time_stamp]
-            if data[0] == "gyroscope":  # Change to another identifier at a later point
-                # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
-                tag = "gyroscope_data"
-                x = data[1]
-                y = data[2]
-                z = data[3]
-                time_stamp = data[4]
-                self.gyroscope_list = [tag, x, y, z, time_stamp]
-            if data[0] == "GPS":  # Change to another identifier at a later point
-                # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
-                tag = data[0]
-                time_stamp = data[1]
-                lat = data[2]
-                long = data[3]
-                self.GPS_list = [tag, time_stamp, lat, long]
+            if msg.topic == "test/topic":
+                if (
+                    data[0]
+                    == "accelerator"  # Handles accelerometer data that has been recieved
+                ):  # Change to another identifier at a later point
+                    # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
+                    tag = "acelerometer_data"
+                    x = data[1]
+                    y = data[2]
+                    z = data[3]
+                    time_stamp = data[4]
+                    self.accelerator_list = [tag, x, y, z, time_stamp]
+                if (
+                    data[0] == "gyroscope"
+                ):  # Handles gyroscope data that has been recieved
+                    # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
+                    tag = "gyroscope_data"
+                    x = data[1]
+                    y = data[2]
+                    z = data[3]
+                    time_stamp = data[4]
+                    self.gyroscope_list = [tag, x, y, z, time_stamp]
+                if data[0] == "GPS":  # Handles GPS data that has been recieved
+                    # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
+                    tag = data[0]
+                    time_stamp = data[1]
+                    lat = data[2]
+                    long = data[3]
+                    self.GPS_list = [tag, time_stamp, lat, long]
             if (
                 len(self.accelerator_list) > 0
-                and len(self.gyroscope_list) > 0
+                and len(self.gyroscope_list)
+                > 0  # Handles synchronization of the IMU and GPS data
                 and len(self.GPS_list) > 0
             ):
                 gyro_and_accel = [
@@ -103,7 +109,9 @@ class IMU_GPS_publisher:
         client.subscribe(self.topic)
         client.on_message = on_message
 
-    def publish(self):
+    def publish(
+        self,
+    ):  # Packages IMU and GPS data into JSON to sent to the MinIO bucket
         data_timestamp: str = self.GPS_list[1]
         gyro_xyz = [
             float(self.gyroscope_list[1]),
@@ -148,7 +156,6 @@ class IMU_GPS_publisher:
             }
         )
         store_received_data(user_data)
-        list_objects_in_bucket()
 
         return
 

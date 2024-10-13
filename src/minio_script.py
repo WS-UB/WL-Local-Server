@@ -5,9 +5,9 @@ from datetime import datetime
 
 # MinIO client setup
 minio_client = Minio(
-    "127.0.0.1:9000",  # Replace with your MinIO server address
-    access_key="DiGqSmuc6oSFP89UvkHG",  # MinIO access key
-    secret_key="KIe5dxtKd7N1easAU2F4nNApuzUTXxUoN0I9zrIp",  # MinIO secret key
+    "128.205.218.189:9000",  # Replace with your MinIO server address
+    access_key="grc55qPlaIhDf2C76YmC",  # MinIO access key
+    secret_key="mGoSY3G1Kozztu1gjQXtz21cHpW3IEOmGz8hxo0k",  # MinIO secret key
     secure=False,  # Set to True if using HTTPS
 )
 
