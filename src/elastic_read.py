@@ -1,8 +1,8 @@
-from minio import Minio
-from elasticsearch import Elasticsearch
 import json
 import io
 import urllib3
+from minio import Minio
+from elasticsearch import Elasticsearch
 
 # Configure MinIO Client
 minio_client = Minio(
