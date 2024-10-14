@@ -68,7 +68,8 @@ class IMU_GPS_publisher:
                     y = data[2]
                     z = data[3]
                     time_stamp = data[4]
-                    self.accelerator_list = [tag, x, y, z, time_stamp]
+                    device_id = data[5]
+                    self.accelerator_list = [tag, x, y, z, time_stamp, device_id]
                 if (
                     data[0] == "gyroscope"
                 ):  # Handles gyroscope data that has been recieved
@@ -78,28 +79,35 @@ class IMU_GPS_publisher:
                     y = data[2]
                     z = data[3]
                     time_stamp = data[4]
-                    self.gyroscope_list = [tag, x, y, z, time_stamp]
+                    device_id = data[5]
+                    self.gyroscope_list = [tag, x, y, z, time_stamp, device_id]
                 if data[0] == "GPS":  # Handles GPS data that has been recieved
                     # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
                     tag = data[0]
-                    time_stamp = data[1]
-                    lat = data[2]
-                    long = data[3]
-                    self.GPS_list = [tag, time_stamp, lat, long]
+                    device_id = data[1]
+                    time_stamp = data[2]
+                    lat = data[3]
+                    long = data[4]
+                    self.GPS_list = [tag, device_id, time_stamp, lat, long]
             if (
                 len(self.accelerator_list) > 0
                 and len(self.gyroscope_list)
                 > 0  # Handles synchronization of the IMU and GPS data
                 and len(self.GPS_list) > 0
             ):
-                gyro_and_accel = [
-                    self.GPS_list,
-                    self.accelerator_list,
-                    self.gyroscope_list,
-                ]
+                if (
+                    self.accelerator_list[5]
+                    == self.gyroscope_list[5]
+                    == self.GPS_list[1]
+                ):
+                    gyro_and_accel = [
+                        self.GPS_list,
+                        self.accelerator_list,
+                        self.gyroscope_list,
+                    ]
                 gyro_timestamp = int(self.gyroscope_list[4].split(".")[1])
                 accel_timestamp = int(self.accelerator_list[4].split(".")[1])
-                GPS_timestamp = int(self.GPS_list[1].split(".")[1])
+                GPS_timestamp = int(self.GPS_list[2].split(".")[1])
                 timestamp_avg = abs(
                     (accel_timestamp + gyro_timestamp + GPS_timestamp) / 3
                 )
@@ -112,7 +120,7 @@ class IMU_GPS_publisher:
     def publish(
         self,
     ):  # Packages IMU and GPS data into JSON to sent to the MinIO bucket
-        data_timestamp: str = self.GPS_list[1]
+        data_timestamp: str = self.GPS_list[2]
         gyro_xyz = [
             float(self.gyroscope_list[1]),
             float(self.gyroscope_list[2]),
@@ -125,8 +133,10 @@ class IMU_GPS_publisher:
             float(self.accelerator_list[3]),
         ]
 
-        GPS_lat = float(self.GPS_list[2])
-        GPS_long = float(self.GPS_list[3])
+        GPS_lat = float(self.GPS_list[3])
+        GPS_long = float(self.GPS_list[4])
+
+        device_id = self.GPS_list[1]
 
         self.accelerator_list = []
         self.gyroscope_list = []
@@ -134,7 +144,7 @@ class IMU_GPS_publisher:
 
         user_data = json.dumps(
             {
-                "user_id": "user1",
+                "user_id": device_id,
                 "timestamp": data_timestamp,
                 "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
                 "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
