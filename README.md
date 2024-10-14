@@ -12,9 +12,11 @@ This repo provides code to stream Elasticsearch on a local server and demonstrat
 
 ## Problem Definition
 We aim to build the back end of the Android mobile application by collecting the data from the app and passing it through a machine-learning model to improve the precision of the user's location on the map. On this current sprint, we will focus on passing the following data to the MQTT server:
-- User ID 
+- User ID
+- Timestamp
 - Gyroscope readings (x,y,z-values)
 - Accelerometer readings (x,y,z-values)
+- Latitude and longitude
 - MAC address of the transmitter
 - Channel number
 - Number of subcarriers
