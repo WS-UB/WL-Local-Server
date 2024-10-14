@@ -27,7 +27,11 @@ We aim to build the back end of the Android mobile application by collecting the
 - Imaginary part of CSI
 - IP of the asus that received the packet
 
+<<<<<<< HEAD
 From here, the data will be queried and passed onto Elasticsearch, which is where we can apply the machine learning model. Once the data has been passed through Elasticsearch, we will store it in MinIO. Our goal is to make sure that real-life data can be passed through MQTT, Elasticsearch, and MinIO back and forth so that the user can receive the most accurate dataset in the application and improve the user's overall experience of using the map.
+=======
+From here, the data will be queried and passed onto Elasticsearch,, which is where we can apply the machine learning model. Once the data has been passed through Elasticsearch, we will store it in MinIO. Our goal is to make sure that real-life data can be passed through MQTT, Elasticsearch, and MinIO back and forth so that the user can receive the most accurate dataset in the application and improve the user's overall experience of using the map.
+>>>>>>> c474cbb39af7055230ecf2a912dad4d93e93e2cf
 
 ## Demographics
 This application will be designed and used by University at Buffalo students and faculty, with the goal being that the application is made into an open-source platform that can be adapted for various large-scale indoor environments. 
