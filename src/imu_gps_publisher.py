@@ -138,6 +138,9 @@ class IMU_GPS_publisher:
 
         device_id = self.GPS_list[1]
 
+        test_list = [self.GPS_list, self.accelerator_list, self.gyroscope_list]
+        print(f"Send `{test_list}` to topic `{self.topic}`")
+
         self.accelerator_list = []
         self.gyroscope_list = []
         self.GPS_list = []
