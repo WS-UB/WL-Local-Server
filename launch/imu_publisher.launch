@@ -1,0 +1,11 @@
+<launch>
+    <!-- Node to publish IMU data -->
+    <node
+        pkg="imu_publisher"
+        type="imu_publisher.py"
+        name="imu_data_publisher"
+        output="screen">
+	<param name="target_socket" type="string" value="ws://192.168.50.23:8090"/>
+        <!-- Add any parameters or arguments here if needed -->
+    </node>
+</launch>
