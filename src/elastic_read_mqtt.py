@@ -31,7 +31,7 @@ def on_message(client, userdata, message):
     # Assuming the payload is a string, we can still log it and prepare for Elasticsearch
     data = parse_string_to_query(message_payload)
     if data:
-        print(f"Parsed data: {data}")  # Print the parsed data
+        # print(f"Parsed data: {data}")  # Print the parsed data
         send_to_elasticsearch(data)
     else:
         print("No valid data to send to Elasticsearch.")
@@ -52,8 +52,6 @@ def parse_string_to_query(input_string):
         except ValueError as e:
             print(f"Error processing line '{line}': {e}")
 
-    print(f"Data dictionary: {data_dict}")
-
     # Step 2: Construct the IMU dictionary
     imu_data = {}
 
@@ -69,7 +67,7 @@ def send_to_elasticsearch(data):
     try:
         # Create or update the document in Elasticsearch
         response = es.index(index=index_name, document=data)
-        print(f"Data has been sent to Elasticsearch!: {response['_id']}")
+        print(f"Data has been sent to Elasticsearch!")
         print(f"ID of the sent data: {response['_id']}")  # Print the document ID
     except Exception as e:
         print(f"Failed to send data to Elasticsearch: {e}")

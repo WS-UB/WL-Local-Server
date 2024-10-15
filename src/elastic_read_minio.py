@@ -71,9 +71,6 @@ def retrieve_data_and_index_es(bucket_name="wl-data"):
 
     except Exception as e:
         print(f"Error retrieving or indexing data: {str(e)}")
-    finally:
-        response.close()
-        response.release_conn()
 
 # * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # ! Feature 2: Delete an indexed data from Elasticsearch
