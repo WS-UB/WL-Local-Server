@@ -1,8 +1,8 @@
-# WiSense IMU/GPS/WiFi Publisher
+# WL-Local-Server
 
 ## Introduction
 
-This repo provides code to stream Elasticsearch on a local server and demonstrates how to interact with Elasticsearch to store, retrieve, and manage data effectively.
+This repo provides code to receive and synchronize IMU, GPS, and WiFi data using an MQTT server. The synchronized data is then sent to a MinIO database, interacting with Elasticsearch to stream data on a local server, demonstrating how to interact with Elasticsearch to store, retrieve, and manage data effectively.
 
 ## Table of Contents:
 
