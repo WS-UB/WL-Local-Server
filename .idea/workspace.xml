@@ -5,7 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="06a2eea0-3478-43d9-9f57-6dbef1208a88" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/src/elastic_read.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/elastic_read.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
