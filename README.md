@@ -10,6 +10,7 @@ This repo provides code to stream and synchronize IMU, GPS, and WiFi from the MQ
 4. [Usage](#usage)
 5. [Application Information](#application-information)
 6. [Set Up](#set-up)
+7. [Project Roadmap](#project-roadmap)
 
 ## Problem Definition
 
