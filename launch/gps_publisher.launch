@@ -1,0 +1,10 @@
+<launch>
+    <!-- Node to publish GPS data -->
+    <node
+        pkg="imu_publisher"
+        type="gps_publisher.py"
+        name="gps_publisher"
+	output="screen">
+ 	<param name="target_socket" type="string" value="ws://192.168.50.23:8091"/>
+    </node>
+</launch>

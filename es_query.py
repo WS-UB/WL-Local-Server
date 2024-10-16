@@ -5,13 +5,18 @@ from minio.error import S3Error
 from elasticsearch import Elasticsearch, exceptions
 
 minio_client = Minio(
-    "100.100.100.100:9000",
-    access_key="minioadmin",
-    secret_key="minioadmin",
-    secure=False
+    "128.205.218.189:9000",  # Replace with your MinIO server address
+    access_key="admin",  # MinIO access key
+    secret_key="password",  # MinIO secret key
+    secure=False,  # Set to True if using HTTPS
 )
 
-es = Elasticsearch(“100.100.100.100:9200")
+es = Elasticsearch(
+    "https://128.205.218.189:9200",
+    basic_auth=("elastic", "mwLUsUm3IJd=ljk8Sq7P"),
+    verify_certs=False,  # Disable certificate verification
+)
+
 
 def list_minio_objects(bucket_name="csi-data"):
     try:
@@ -20,6 +25,7 @@ def list_minio_objects(bucket_name="csi-data"):
     except S3Error as err:
         print(f"MinIO Error: {err}")
         return []
+
 
 def download_minio_object(bucket_name, object_name, download_path="/tmp/csi_data.bin"):
     try:
@@ -30,29 +36,30 @@ def download_minio_object(bucket_name, object_name, download_path="/tmp/csi_data
         print(f"Error downloading {object_name}: {err}")
         return None
 
+
 def parse_csi_data(file_content):
     num_floats = len(file_content) // 4
-    data = struct.unpack(f'{num_floats}f', file_content)
+    data = struct.unpack(f"{num_floats}f", file_content)
     return data
+
 
 def index_csi_data_to_elasticsearch(index_name, data):
     for i, entry in enumerate(data):
-        doc = {
-            "csi_value": entry,
-            "timestamp": "2024-09-28T15:45:00"
-        }
+        doc = {"csi_value": entry, "timestamp": "2024-10-07T12:40:00"}
         try:
             es.index(index=index_name, body=doc)
         except exceptions.ConnectionError as e:
             print(f"Failed to index document {i}: {e}")
 
+
 def query_elasticsearch(index_name, query):
     try:
         response = es.search(index=index_name, body=query)
-        return response['hits']['hits']
+        return response["hits"]["hits"]
     except exceptions.ConnectionError as e:
         print(f"Failed to connect to Elasticsearch: {e}")
         return []
+
 
 def main():
     bucket_name = "csi-data"
@@ -63,17 +70,13 @@ def main():
     download_path = download_minio_object(bucket_name, object_name)
 
     if download_path:
-        with open(download_path, 'rb') as file:
+        with open(download_path, "rb") as file:
             file_content = file.read()
             parsed_data = parse_csi_data(file_content)
             print(f"Parsed Data (first 10 entries): {parsed_data[:10]}")
             index_csi_data_to_elasticsearch("csi-index", parsed_data)
 
-    query = {
-        "query": {
-            "match_all": {}
-        }
-    }
+    query = {"query": {"match_all": {}}}
 
     es_results = query_elasticsearch("csi-index", query)
 
@@ -83,6 +86,7 @@ def main():
             print(json.dumps(result, indent=2))
     else:
         print("No results found in Elasticsearch.")
+
 
 if __name__ == "__main__":
     main()
