@@ -2,12 +2,15 @@ import json
 from io import BytesIO
 from minio import Minio
 from datetime import datetime
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 # MinIO client setup
 minio_client = Minio(
     "128.205.218.189:9000",  # Replace with your MinIO server address
-    access_key="grc55qPlaIhDf2C76YmC",  # MinIO access key
-    secret_key="mGoSY3G1Kozztu1gjQXtz21cHpW3IEOmGz8hxo0k",  # MinIO secret key
+    access_key="admin",  # MinIO access key
+    secret_key="password",  # MinIO secret key
     secure=False,  # Set to True if using HTTPS
 )
 
@@ -19,6 +22,9 @@ def store_received_data(received_data, bucket_name="wl-data"):
         # Parse the incoming data (assuming it's a JSON string)
         data = json.loads(received_data)
         print("Data parsed successfully!")
+        df = pd.DataFrame(data)
+        table = pa.Table.from_pandas(df)
+        pq.write_table(table, "output.parquet")
 
         # Ensure the bucket exists, create it if it doesn't
         if not minio_client.bucket_exists(bucket_name):
@@ -26,38 +32,18 @@ def store_received_data(received_data, bucket_name="wl-data"):
             print(f"Bucket '{bucket_name}' created.")
 
         # Extract the User ID and Timestamp from the received data
-        user_id = data.get("user_id", "unknown_user")
-        timestamp = data.get("timestamp", datetime.utcnow().isoformat())
-
-        # Convert the rest of the data into a JSON structure to store
-        imu_data = data.get("IMU", {})
-        gps_data = data.get("GPS", {})
-        wifi_data = data.get("WiFi", {})
-        channel_data = data.get("Channel", {})
-
-        # Structure the data to store in MinIO
-        data_entry = {
-            "user_id": user_id,
-            "timestamp": timestamp,
-            "IMU": imu_data,
-            "GPS": gps_data,
-            "WiFi": wifi_data,
-            "Channel": channel_data,
-        }
-
-        # Convert data to JSON format for storage
-        json_data = json.dumps(data_entry)
+        user_id = data[0].get("user_id", "unknown_user")
+        timestamp = data[0].get("timestamp", datetime.utcnow().isoformat())
 
         # Define the object name using User ID and Timestamp in the format "UserId/Timestamp"
-        object_name = f"{user_id}/{timestamp}.json"
+        object_name = f"{user_id}/{timestamp}.parquet"
+        file_name = "output.parquet"
 
         # Store the data in MinIO
-        minio_client.put_object(
+        minio_client.fput_object(
             bucket_name,
             object_name,
-            BytesIO(json_data.encode("utf-8")),
-            len(json_data),
-            content_type="application/json",
+            file_name,
         )
         print(f"Successfully stored data for {user_id} at {timestamp} in MinIO.")
     except Exception as e:
@@ -91,21 +77,21 @@ def retrieve_data_from_minio(bucket_name="wl-data"):
     timestamp = input("Please enter the Timestamp (format: YYYY-MM-DDTHH:MM:SS): ")
 
     # Construct the object name using User ID and Timestamp
-    object_name = f"{user_id}/{timestamp}.json"
+    object_name = f"{user_id}/{timestamp}.parquet"
+    file_path = "src/received.parquet"
     print(f"Attempting to retrieve object: {object_name} from bucket: {bucket_name}")
 
     try:
         # Retrieve the object from MinIO
-        response = minio_client.get_object(bucket_name, object_name)
+        response = minio_client.fget_object(bucket_name, object_name, file_path)
         print("Object retrieved successfully.")
 
         # Read and decode the object data
-        data = response.read().decode("utf-8")
-        json_data = json.loads(data)
+        data = pd.read_parquet("src/received.parquet")
 
         # Display all the details for the respective user_id and timestamp
         print(f"Data for User ID: {user_id} at {timestamp}:")
-        print(json.dumps(json_data, indent=4))
+        print(data)
 
     except Exception as e:
         print(f"Error retrieving data: {str(e)}")

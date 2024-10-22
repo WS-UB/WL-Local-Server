@@ -1,20 +1,10 @@
 from paho.mqtt import client as mqtt_client
 from minio_script import store_received_data, list_objects_in_bucket
 import datetime
+import re
 import json
+import time
 
-# import rospy
-# import urllib.parse
-# import websocket
-# import json
-# from collections import deque
-# import pandas as pd
-# from sensor_msgs.msg import Imu
-# from geometry_msgs.msg import Vector3, Quaternion
-# import time
-# import threading
-# import signal
-# import sys
 
 # RUN "minio server /Users/harrisonmoore/data" in your terminal to start server
 
@@ -36,6 +26,7 @@ class IMU_GPS_publisher:
         self.accelerator_list = []
         self.gyroscope_list = []
         self.GPS_list = []
+        self.WiFi_list = []
         self.CLIENT = None
         global MARGIN
 
@@ -58,8 +49,8 @@ class IMU_GPS_publisher:
     def subscribe(self, client: mqtt_client):
         def on_message(client, userdata, msg):
             global GPS_LIST
-            data = msg.payload.decode().split(",")
             if msg.topic == "test/topic":
+                data = msg.payload.decode().split(",")
                 if (
                     data[0]
                     == "accelerator"  # Handles accelerometer data that has been recieved
@@ -91,31 +82,59 @@ class IMU_GPS_publisher:
                     lat = data[3]
                     long = data[4]
                     self.GPS_list = [tag, device_id, time_stamp, lat, long]
+            if msg.topic == "/csi":
+                raw_data = msg.payload.decode()
+                list_of_data = extract_lists(raw_data)
+                txmac = list_of_data[0]
+                csi_real = list_of_data[1]
+                csi_imag = list_of_data[2]
+                data = remove_lists(raw_data)
+                wifi_timestamp = str(datetime.datetime.now())
+                rssi = data[8]
+                ap_id = data[0]
+                chan = data[2]
+                bw = data[6]
+                mcs = data[7]
+                self.WiFi_list = [
+                    wifi_timestamp,
+                    csi_imag,
+                    csi_real,
+                    rssi,
+                    ap_id,
+                    chan,
+                    bw,
+                    mcs,
+                ]
 
             if (
                 len(self.accelerator_list) > 0
                 and len(self.gyroscope_list)
                 > 0  # Handles synchronization of the IMU and GPS data
                 and len(self.GPS_list) > 0
+                and len(self.WiFi_list) > 0
             ):
-                if (
-                    self.accelerator_list[5]
-                    == self.gyroscope_list[5]
-                    == self.GPS_list[1]
-                ):
-                    gyro_and_accel = [
-                        self.GPS_list,
-                        self.accelerator_list,
-                        self.gyroscope_list,
-                    ]
-                gyro_timestamp = int(self.gyroscope_list[4].split(".")[1])
-                accel_timestamp = int(self.accelerator_list[4].split(".")[1])
-                GPS_timestamp = int(self.GPS_list[2].split(".")[1])
-                timestamp_avg = abs(
-                    (accel_timestamp + gyro_timestamp + GPS_timestamp) / 3
-                )
-                if timestamp_avg <= MARGIN:
-                    self.publish()
+                accel_id = self.accelerator_list[5]
+                gyro_id = self.gyroscope_list[5]
+                GPS_id = self.GPS_list[1]
+                if accel_id == gyro_id == GPS_id:
+                    gyro_timestamp = int(self.gyroscope_list[4].split(".")[1])
+                    accel_timestamp = int(self.accelerator_list[4].split(".")[1])
+                    GPS_timestamp = int(self.GPS_list[2].split(".")[1])
+                    try:
+                        WiFI_timestamp = int(self.WiFi_list[0].split(".")[1][:-3])
+                    except:
+                        WiFI_timestamp = 0
+                    timestamp_avg = abs(
+                        (
+                            accel_timestamp
+                            + gyro_timestamp
+                            + GPS_timestamp
+                            + WiFI_timestamp
+                        )
+                        / 3
+                    )
+                    if timestamp_avg <= MARGIN:
+                        self.publish()
 
         for topic in self.topics:
             client.subscribe(topic)
@@ -124,7 +143,7 @@ class IMU_GPS_publisher:
     def publish(
         self,
     ):  # Packages IMU and GPS data into JSON to sent to the MinIO bucket
-        data_timestamp: str = self.GPS_list[2]
+        data_timestamp: str = self.WiFi_list[0]
         gyro_xyz = [
             float(self.gyroscope_list[1]),
             float(self.gyroscope_list[2]),
@@ -140,9 +159,22 @@ class IMU_GPS_publisher:
         GPS_lat = float(self.GPS_list[3])
         GPS_long = float(self.GPS_list[4])
 
+        WiFi_csi_imag = self.WiFi_list[1]
+        WiFi_csi_real = self.WiFi_list[2]
+        WiFi_rssi = self.WiFi_list[3]
+        WiFi_ap_id = self.WiFi_list[4]
+        WiFi_chan = self.WiFi_list[5]
+        WiFi_bw = self.WiFi_list[6]
+        WiFi_mcs = self.WiFi_list[7]
+
         device_id = self.GPS_list[1]
 
-        test_list = [self.GPS_list, self.accelerator_list, self.gyroscope_list]
+        test_list = [
+            self.GPS_list,
+            self.accelerator_list,
+            self.gyroscope_list,
+            self.WiFi_list,
+        ]
         print(f"Send `{test_list}` to topic `{self.topics[0]}`")
 
         self.accelerator_list = []
@@ -150,31 +182,48 @@ class IMU_GPS_publisher:
         self.GPS_list = []
 
         user_data = json.dumps(
-            {
-                "user_id": device_id,
-                "timestamp": data_timestamp,
-                "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
-                "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
-                "WiFi": {
-                    "csi_imag": 0.5,
-                    "csi_real": 0.6,
-                    "rssi": -70,
-                    "ap_id": "AP123",
-                },
-                "Channel": {
-                    "chan": 1,
-                    "channel": 36,
-                    "bw": 20,
-                    "nss": 2,
-                    "ntx": 1,
-                    "nrx": 2,
-                    "mcs": 7,
-                },
-            }
+            [
+                {
+                    "user_id": device_id,
+                    "timestamp": data_timestamp,
+                    "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
+                    "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
+                    "WiFi": {
+                        "csi_imag": WiFi_csi_imag,
+                        "csi_real": WiFi_csi_real,
+                        "rssi": WiFi_rssi,
+                        "ap_id": WiFi_ap_id,
+                    },
+                    "Channel": {
+                        "chan": WiFi_chan,
+                        "channel": 36,
+                        "bw": WiFi_bw,
+                        "nss": 2,
+                        "ntx": 1,
+                        "nrx": 2,
+                        "mcs": 7,
+                    },
+                }
+            ]
         )
+
         store_received_data(user_data)
 
         return
+
+
+def extract_lists(data: str) -> list[list[float]]:
+    matches = re.findall(r"\[(.*?)\]", data)
+    extracted_lists = [list(map(float, match.split(","))) for match in matches]
+    return extracted_lists
+
+
+def remove_lists(data: str) -> list[str]:
+    cleaned_string = re.sub(r"\[.*?\]", "", data)
+    # Remove any extra commas or spaces
+    cleaned_string = re.sub(r",\s*", ", ", cleaned_string).strip(", ")
+    split_string = cleaned_string.split(",")
+    return split_string
 
 
 def run():

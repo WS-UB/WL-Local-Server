@@ -1,0 +1,2 @@
+,user_id,timestamp,IMU,GPS,WiFi,Channel
+0,02:00:00:00:00:00,2024-10-22 17:48:53.000014,"{'accel': array([0.      , 9.776321, 0.812345]), 'gyro': array([0., 0., 0.])}","{'latitude': 37.421998333333335, 'longitude': -122.084}","{'ap_id': '1', 'csi_imag': array([0.5, 0.6, 0.7, 0.8]), 'csi_real': array([0.1, 0.2, 0.3, 0.4]), 'rssi': ' -65'}","{'bw': ' 20', 'chan': ' 6', 'channel': 36, 'mcs': 7, 'nrx': 2, 'nss': 2, 'ntx': 1}"
