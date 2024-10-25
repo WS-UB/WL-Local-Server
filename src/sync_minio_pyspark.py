@@ -43,14 +43,27 @@ def retrieve_data_from_minio(bucket_name="wl-data"):
     return user_id, timestamp, json_data
 
 # * Feature 2: Use the newly created spark and the JSON data from MinIO to create a new dataframe.
-def create_dataframe_from_json(spark, json_data):
-    """Create a DataFrame from the JSON data."""
+def create_parquet_from_json(spark, json_data, parquet_path):
+    """Create a DataFrame from JSON data (string/dictionary) and save it as Parquet."""
+    
+    # If input is a JSON string, parse it into a Python dictionary
+    if isinstance(json_data, str):
+        json_data = json.loads(json_data)  # Convert JSON string to dictionary
 
-    # Create a DataFrame from the JSON data
-    df = spark.createDataFrame([json_data])
+    # If the JSON is a single dictionary, wrap it in a list to create a DataFrame
+    if isinstance(json_data, dict):
+        json_data = [json_data]
 
-    # Return the PySpark DataFrame
+    # Create DataFrame from JSON data
+    df = spark.createDataFrame(json_data)
+
+    # Write the DataFrame to Parquet format
+    df.write.parquet(parquet_path)
+    print(f"Data saved to Parquet at: {parquet_path}")
+
+    # Return the DataFrame for further use if needed
     return df
+
 
 # * ---------------------------------------------------------------------------------------------- MAIN FUNCTION RUNS HERE -----------------------------------------------------------------------------------------------
 # !! This is the main function that runs the program
@@ -59,10 +72,11 @@ def main():
     spark = SparkSession.builder.appName("SyncMinIO").getOrCreate()
 
     # Retrieve the JSON data from MinIO
+    json_data = []
     user_id, timestamp, json_data = retrieve_data_from_minio()
 
     # Create a DataFrame from the inputted JSON data
-    exampleDF = create_dataframe_from_json(spark, json_data)
+    exampleDF = create_parquet_from_json(spark, json_data,"2024-10-07T12-40-00.parquet")
 
     # Show the DataFrame
     exampleDF.show()

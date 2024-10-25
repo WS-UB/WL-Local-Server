@@ -35,18 +35,24 @@ def on_message(client, userdata, message):
     if query_data:
         data_list.append(query_data)  # Append the dictionary to the list
 
-    # Create DataFrame in batches of 10 messages
-    if len(data_list) >= 10:  # Example: convert to DataFrame every 10 messages
-        # Create a DataFrame from the list of dictionaries
-        df = create_dataframe_from_list(spark, data_list)
-        print("\nDataFrame created from collected messages:")
-        
+    # Create parquet file when batch size reaches 10
+    if len(data_list) >= 10:
+        # Write the data to a Parquet file
+        output_path = "output.parquet"
+        create_parquet_from_list(spark, data_list, output_path)
+
+        print("\nParquet file created and data saved.")
+
+        # Read the Parquet file back into a DataFrame
+        df = spark.read.parquet(output_path)
+
         # Display the DataFrame
-        df.show()  
-        
+        print("\nDataFrame created from collected messages:")
+        df.show()
+
         # Update the global DataFrame
         global_df = df
-        
+
         # Clear the list after processing
         data_list.clear()
 
@@ -75,13 +81,16 @@ def parse_string_to_query(input_string):
     # Return the dictionary
     return data_dict  # Return as a dictionary
 
-# * Function 4: Create a DataFrame from a list of dictionaries
-def create_dataframe_from_list(spark, data_list):
-    """Create a DataFrame from a list of dictionaries."""
-    # Create a DataFrame from the list of dictionaries
+# * Function 4: Create a parquet file from a list of dictionaries
+def create_parquet_from_list(spark, data_list, output_path):
+    """Create a Parquet file from a list of dictionaries."""
+    # Step 1: Create a DataFrame from the list of dictionaries
     df = spark.createDataFrame(data_list)
 
-    # Return the PySpark DataFrame
+    # Step 2: Write the DataFrame to a Parquet file
+    df.write.mode("overwrite").parquet(output_path)
+
+    # Return the data frame
     return df
 
 # * ---------------------------------------------------------------------------------------------- MAIN FUNCTION RUNS HERE -----------------------------------------------------------------------------------------------
