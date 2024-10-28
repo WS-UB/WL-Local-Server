@@ -1,8 +1,10 @@
 import json
-import pandas as pd
 from io import BytesIO
 from minio import Minio
 from datetime import datetime
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 # MinIO client setup
 minio_client = Minio(
@@ -99,6 +101,29 @@ def retrieve_data_from_minio(bucket_name="wl-data"):
         print(f"Error retrieving data: {str(e)}")
         print("Please check if the object exists and ensure the User ID and Timestamp are correct.")
 
+
+def test_store_valid_data():
+    print("\nRunning Test Case: Store Valid Data")
+    test_data = json.dumps({
+       {
+            "user_id": "user1",
+            "timestamp": "2024-10-07T12:40:00",
+            "IMU": {"gyro": [0.1, 0.2, 0.3], "accel": [4.8, 0.0, 0.0]},
+            "GPS": {"latitude": 42.12545, "longitude": -78.12315},
+            "WiFi": {"csi_imag": 0.5, "csi_real": 0.6, "rssi": -70, "ap_id": "AP123"},
+            "Channel": {
+                "chan": 1,
+                "channel": 36,
+                "bw": 20,
+                "nss": 2,
+                "ntx": 1,
+                "nrx": 2,
+                "mcs": 7,
+            }
+       }
+    })
+    store_received_data(test_data)
+
 def main():
     while True:
         print("\nOptions:")
@@ -119,37 +144,7 @@ def main():
             break
         else:
             print("Invalid choice. Please select a valid option.")
-
-def test_store_valid_data():
-    print("\nRunning Test Case: Store Valid Data")
-    test_data = json.dumps({
-        "user_id": "user45",
-        "timestamp": "2024-10-07T12:40:00",
-        "IMU": {
-            "gyro": [0.1, 0.2, 0.3],
-            "accel": [4.8, 0.0, 0.0]
-        },
-        "GPS": {
-            "latitude": 42.12545,
-            "longitude": -78.12315
-        },
-        "WiFi": {
-            "csi_imag": 0.5,
-            "csi_real": 0.6,
-            "rssi": -70,
-            "ap_id": "AP123"
-        },
-        "Channel": {
-            "chan": 1,
-            "channel": 36,
-            "bw": 20,
-            "nss": 2,
-            "ntx": 1,
-            "nrx": 2,
-            "mcs": 7
-        }
-    })
-    store_received_data(test_data)
+            
 
 if __name__ == "__main__":
     main()
