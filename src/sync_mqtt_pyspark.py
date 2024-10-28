@@ -53,6 +53,9 @@ def on_message(client, userdata, message):
         # Update the global DataFrame
         global_df = df
 
+        # Publish the DataFrame content to MQTT
+        publish_parquet_to_mqtt(global_df, client, "response/topic")
+
         # Clear the list after processing
         data_list.clear()
 
@@ -92,6 +95,20 @@ def create_parquet_from_list(spark, data_list, output_path):
 
     # Return the data frame
     return df
+
+# * Function 5: Publish Parquet data as JSON to MQTT
+def publish_parquet_to_mqtt(df, client, topic):
+    """Publish DataFrame content as JSON to MQTT."""
+    try:
+        # Convert DataFrame to JSON strings
+        json_data = df.toJSON().collect()
+
+        # Publish each JSON object to the MQTT broker
+        for record in json_data:
+            client.publish(topic, record)
+            print(f"Published to {topic}: {record}")
+    except Exception as e:
+        print(f"Error publishing to MQTT: {e}")
 
 # * ---------------------------------------------------------------------------------------------- MAIN FUNCTION RUNS HERE -----------------------------------------------------------------------------------------------
 # !! This is the main function that runs the program
