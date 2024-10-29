@@ -84,17 +84,21 @@ class IMU_GPS_publisher:
                     self.GPS_list = [tag, device_id, time_stamp, lat, long]
             if msg.topic == "/csi":
                 raw_data = msg.payload.decode()
-                list_of_data = extract_lists(raw_data)
+                formated_data = cleaned_string = raw_data.replace("\n", ",")
+                list_of_data = extract_lists(formated_data)
                 txmac = list_of_data[0]
                 csi_real = list_of_data[1]
                 csi_imag = list_of_data[2]
-                data = remove_lists(raw_data)
+                data = remove_lists(formated_data)
                 wifi_timestamp = str(datetime.datetime.now())
-                rssi = data[8]
-                ap_id = data[0]
-                chan = data[2]
-                bw = data[6]
-                mcs = data[7]
+                rssi = data[14].split(":")[1]
+                ap_id = data[6].split(":")[1]
+                chan = data[8].split(":")[1]
+                bw = data[12].split(":")[1]
+                mcs = data[13].split(":")[1]
+                nsub = data[9].split(":")[1]
+                nrows = data[10].split(":")[1]
+                ncols = data[11].split(":")[1]
                 self.WiFi_list = [
                     wifi_timestamp,
                     csi_imag,
@@ -104,6 +108,9 @@ class IMU_GPS_publisher:
                     chan,
                     bw,
                     mcs,
+                    nsub,
+                    nrows,
+                    ncols,
                 ]
 
             if (
@@ -166,6 +173,9 @@ class IMU_GPS_publisher:
         WiFi_chan = self.WiFi_list[5]
         WiFi_bw = self.WiFi_list[6]
         WiFi_mcs = self.WiFi_list[7]
+        WiFi_nsub = self.WiFi_list[8]
+        WiFi_nrows = self.WiFi_list[9]
+        WiFi_ncols = self.WiFi_list[10]
 
         device_id = self.GPS_list[1]
 
@@ -198,10 +208,10 @@ class IMU_GPS_publisher:
                         "chan": WiFi_chan,
                         "channel": 36,
                         "bw": WiFi_bw,
-                        "nss": 2,
-                        "ntx": 1,
-                        "nrx": 2,
-                        "mcs": 7,
+                        "nsub": WiFi_nsub,
+                        "nrows": WiFi_nrows,
+                        "ncol": WiFi_ncols,
+                        "mcs": WiFi_mcs,
                     },
                 }
             ]

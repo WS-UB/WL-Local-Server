@@ -12,15 +12,15 @@ CLIENT_ID_WIFI = "send-data-WiFi"
 
 
 def run():
-    wifi_Handler = MQTTHandler(CLIENT_ID_WIFI, BROKER, PORT, TOPIC)
-    client_wifi = wifi_Handler.connect_mqtt()
-    wifi_data = "1, [0, 26, 43, 60, 77, 94], 6, 64, 2, 4, 20, 9, -65, 8, 123, [0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8], 192.168.1.2, 456"
+    # wifi_Handler = MQTTHandler(CLIENT_ID_WIFI, BROKER, PORT, TOPIC)
+    # client_wifi = wifi_Handler.connect_mqtt()
+    # wifi_data = "1, [0, 26, 43, 60, 77, 94], 6, 64, 2, 4, 20, 9, -65, 8, 123, [0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8], 192.168.1.2, 456"
 
-    while True:
-        wifi_Handler.publish(client=client_wifi, msg=wifi_data)
+    # while True:
+    #     wifi_Handler.publish(client=client_wifi, msg=wifi_data)
 
-    # df_parquet = pd.read_parquet("output.parquet")
-    # df_parquet.to_csv("output.csv")
+    df_parquet = pd.read_parquet("output.parquet")
+    df_parquet.to_csv("output.csv")
 
 
 # Convert the matched strings to lists of integers
