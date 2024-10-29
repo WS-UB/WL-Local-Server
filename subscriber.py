@@ -9,9 +9,9 @@ import random
 
 # Create MQTT publisher
 address = "128.205.218.189"
-port = 5000
+port = 1883
 client_id = f"python-mqtt-{random.randint(0, 1000)}"
-# client = mqtt_client.Client("client")
+CLIENT = mqtt_client.Client("client")
 topic = "/csi"
 
 
@@ -30,6 +30,7 @@ def connect_mqtt():
 
 
 def csi_callback(msg):
+    global CLIENT
     # read input ROS message raw data into buffer
     bstr = b""
     buf = BytesIO()
@@ -41,7 +42,7 @@ def csi_callback(msg):
 
     # send header and bytestring to ZMQ subscriber
     bmsg = "0".encode() + b"CSI" + host + bstr
-    client.publish(bmsg)
+    CLIENT.publish("/csi", bmsg)
     print(f"send {time.time()}")
 
 
@@ -70,13 +71,10 @@ if __name__ == "__main__":
     - receive messages of type rf_msgs.Wifi
     - Call csi_callback when you get a message
     """
-    c = connect_mqtt()
-    c.onmessage = print(Wifi)
-    c.loop_forever()
+
+    CLIENT = connect_mqtt()
     sub = rospy.Subscriber("/csi", Wifi, csi_callback)
     pub = rospy.Publisher("/csi", Wifi, queue_size=1)
-    while not rospy.is_shutdown():
-        mqtt_client.publish(Wifi)
 
     # wait forever
     rospy.spin()
