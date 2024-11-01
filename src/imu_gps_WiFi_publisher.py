@@ -84,12 +84,12 @@ class IMU_GPS_publisher:
                     self.GPS_list = [tag, device_id, time_stamp, lat, long]
             if msg.topic == "/csi":
                 raw_data = msg.payload.decode()
-                formated_data = cleaned_string = raw_data.replace("\n", ",")
-                list_of_data = extract_lists(formated_data)
+                formatted_data = raw_data.replace("\n", ",")
+                list_of_data = extract_lists(formatted_data)
                 txmac = list_of_data[0]
                 csi_real = list_of_data[1]
                 csi_imag = list_of_data[2]
-                data = remove_lists(formated_data)
+                data = remove_lists(formatted_data)
                 wifi_timestamp = str(datetime.datetime.now())
                 rssi = data[14].split(":")[1]
                 ap_id = data[6].split(":")[1]
@@ -206,7 +206,6 @@ class IMU_GPS_publisher:
                     },
                     "Channel": {
                         "chan": WiFi_chan,
-                        "channel": 36,
                         "bw": WiFi_bw,
                         "nsub": WiFi_nsub,
                         "nrows": WiFi_nrows,
