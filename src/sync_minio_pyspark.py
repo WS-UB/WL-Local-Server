@@ -1,6 +1,7 @@
 import json
 import urllib3
 from minio import Minio
+import paho.mqtt.client as mqtt
 from pyspark.sql import SparkSession
 
 # Configure MinIO Client
@@ -11,11 +12,16 @@ minio_client = Minio(
     secure=False             # Set to True if using HTTPS
 )
 
+# Configuration for MQTT broker
+MQTT_BROKER = "128.205.218.189"  # Replace with your MQTT broker address
+MQTT_PORT = 1883                     # Default MQTT port
+MQTT_TOPIC = "test/topic"             # Topic to publish data
+
 # Supress all warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # * -------------------------------------------------------------------------------------------- START BUILDING FEATURES HERE --------------------------------------------------------------------------------------------
-# * Feature 1: Retrieve data from MinIO and index in Elasticsearch 
+# * Feature 1: Retrieve data from MinIO
 # TODO: Make sure to create an input for the user_id and timestamp. 
 # * This function will retrieve the data from MinIO using the requested User ID and Timestamp
 def retrieve_data_from_minio(bucket_name="wl-data"):
@@ -43,39 +49,46 @@ def retrieve_data_from_minio(bucket_name="wl-data"):
     return user_id, timestamp, json_data
 
 # * Feature 2: Use the newly created spark and the JSON data from MinIO to create a new dataframe.
-def create_parquet_from_json(spark, json_data, parquet_path):
-    """Create a DataFrame from JSON data (string/dictionary) and save it as Parquet."""
-    
-    # If input is a JSON string, parse it into a Python dictionary
-    if isinstance(json_data, str):
-        json_data = json.loads(json_data)  # Convert JSON string to dictionary
+def create_dataframe_from_json(spark, json_data):
+    """Create a DataFrame from the JSON data."""
 
-    # If the JSON is a single dictionary, wrap it in a list to create a DataFrame
-    if isinstance(json_data, dict):
-        json_data = [json_data]
+    # Create a DataFrame from the JSON data
+    df = spark.createDataFrame([json_data])
 
-    # Create DataFrame from JSON data
-    df = spark.createDataFrame(json_data)
-
-    # Write the DataFrame to Parquet format
-    df.write.parquet(parquet_path)
-    print(f"Data saved to Parquet at: {parquet_path}")
-
-    # Return the DataFrame for further use if needed
+    # Return the PySpark DataFrame
     return df
 
-# * Feature 3: Upload Parquet file back to MinIO
-def upload_to_minio(local_file_path, bucket_name, object_name):
-    """Upload a local file to MinIO."""
+# * Feature 3: Send data back to MQTT
+def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_TOPIC):
+    """Send JSON data to the specified MQTT topic."""
+    
+    # Convert the data to JSON format if it's not already
+    if not isinstance(data, str):
+        data = json.dumps(data)
+    
+    # Initialize the MQTT client
+    client = mqtt.Client()
+    
     try:
-        # Upload the Parquet file to the specified bucket
-        minio_client.fput_object(
-            bucket_name, object_name, local_file_path
-        )
-        print(f"Uploaded {local_file_path} to {bucket_name}/{object_name}")
+        # Connect to the MQTT broker
+        client.connect(broker, port)
+        
+        # Publish data to the specified MQTT topic
+        result = client.publish(topic, data)
+        
+        # Check if the publish was successful
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            print(f"Data published to MQTT topic '{topic}' successfully.")
+        else:
+            print(f"Failed to publish data to MQTT topic '{topic}'. Error code: {result.rc}")
+    
     except Exception as e:
-        print(f"Error uploading file: {str(e)}")
-
+        print(f"Error sending data to MQTT: {e}")
+    
+    finally:
+        # Disconnect from the MQTT broker
+        client.disconnect()
+    
 
 # * ---------------------------------------------------------------------------------------------- MAIN FUNCTION RUNS HERE -----------------------------------------------------------------------------------------------
 # !! This is the main function that runs the program
@@ -84,24 +97,16 @@ def main():
     spark = SparkSession.builder.appName("SyncMinIO").getOrCreate()
 
     # Retrieve the JSON data from MinIO
-    json_data = []
     user_id, timestamp, json_data = retrieve_data_from_minio()
 
-        # Generate Parquet filename and path
-    parquet_file_name = f"{timestamp.replace(':', '-')}.parquet"
-    local_parquet_path = f"./{parquet_file_name}"  # Save locally first
+    # Send data from MinIO back to MQTT. In this case, we send the GPS coordiantes back to the MQTT broker.
+    send_data_to_mqtt(json_data["GPS"])
 
-     # Create a DataFrame and save as Parquet
-    exampleDF = create_parquet_from_json(spark, json_data, local_parquet_path)
+    # Create a DataFrame from the inputted JSON data
+    exampleDF = create_dataframe_from_json(spark, json_data)
 
     # Show the DataFrame
     exampleDF.show()
-
-    # Define MinIO object path under 'user123/' folder
-    object_name = f"user123/{parquet_file_name}"
-
-    # Upload Parquet file to MinIO
-    upload_to_minio(local_parquet_path, "wl-data", object_name)
 
 if __name__ == "__main__":
     main()
