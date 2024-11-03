@@ -3,6 +3,9 @@ import urllib3
 from minio import Minio
 import paho.mqtt.client as mqtt
 from pyspark.sql import SparkSession
+from io import BytesIO
+import pandas as pd
+import pyarrow.parquet as pq
 
 # Configure MinIO Client
 minio_client = Minio(
@@ -24,48 +27,39 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # * Feature 1: Retrieve data from MinIO
 # TODO: Make sure to create an input for the user_id and timestamp. 
 # * This function will retrieve the data from MinIO using the requested User ID and Timestamp
-def retrieve_data_from_minio(bucket_name="wl-data"):
-    """Retrieve and print the data from MinIO using User ID and Timestamp."""
+def read_parquet_data(bucket_name="wl-data"):
+    """Retrieve the data in MinIO with specific user_id and timestamp."""
     
     # ! Use one specific User ID and Timestamp for demonstration
-    user_id = "user2"
-    timestamp = "2024-10-07T12:40:00"
-
-    object_name = f"{user_id}/{timestamp}.json"
-    print(f"Attempting to retrieve object: {object_name} from bucket: {bucket_name}")
+    user_id = "02:00:00:00:00:00"
+    timestamp = "2024-10-22 18:16:22.530491"
     
     try:
-        # Retrieve the object from MinIO
-        response = minio_client.get_object(bucket_name, object_name)
-        print("Object retrieved successfully.")
+        # Retrieve the dataframe from MinIO
+        response = get_data_from_minio(bucket_name, user_id, timestamp)
         
-        # Read and decode the object data
-        data = response.read().decode("utf-8")
-        json_data = json.loads(data)
+        # Get the GPS data from the retrieved dataframe
+        gps_data = response["GPS"]
+
+        return gps_data 
         
     except Exception as e:
         print(f"Error retrieving data: {str(e)}")
         print("Please check if the object exists in the bucket and ensure the User ID and Timestamp are correct.")
-    return user_id, timestamp, json_data
 
-# * Feature 2: Use the newly created spark and the JSON data from MinIO to create a new dataframe.
-def create_dataframe_from_json(spark, json_data):
-    """Create a DataFrame from the JSON data."""
 
-    # Create a DataFrame from the JSON data
-    df = spark.createDataFrame([json_data])
-
-    # Return the PySpark DataFrame
-    return df
-
-# * Feature 3: Send data back to MQTT
+# * Feature 2: Send data back to MQTT
 def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_TOPIC):
-    """Send JSON data to the specified MQTT topic."""
-    
-    # Convert the data to JSON format if it's not already
-    if not isinstance(data, str):
-        data = json.dumps(data)
-    
+    """Send data to the specified MQTT topic."""
+
+    # Initialize the list to store GPS coordinates
+    gps_coordinates_pairs = [
+        (gps_entry["latitude"], gps_entry["longitude"])
+        for gps_entry in data if isinstance(gps_entry, dict)
+    ]
+        
+    data_payload = json.dumps(gps_coordinates_pairs)
+
     # Initialize the MQTT client
     client = mqtt.Client()
     
@@ -74,7 +68,7 @@ def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_TOPIC
         client.connect(broker, port)
         
         # Publish data to the specified MQTT topic
-        result = client.publish(topic, data)
+        result = client.publish(topic, data_payload)
         
         # Check if the publish was successful
         if result.rc == mqtt.MQTT_ERR_SUCCESS:
@@ -88,7 +82,31 @@ def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_TOPIC
     finally:
         # Disconnect from the MQTT broker
         client.disconnect()
+
+
+# * Feature 3: Retrieve data from MinIO (Thanks to the function that is provided in minio_script.py) 
+def get_data_from_minio(bucket_name, user_id, timestamp):
+    """Retrieve and print the data from MinIO using User ID and Timestamp."""
+
+    object_name = f"{user_id}/{timestamp}.parquet"
+    print(f"Attempting to retrieve object: {object_name} from bucket: {bucket_name}")
     
+    try:
+        # Retrieve the object from MinIO
+        response = minio_client.get_object(bucket_name, object_name)
+        print("Object retrieved successfully.")
+        
+        # Read Parquet data into a DataFrame
+        data = pd.read_parquet(BytesIO(response.read()), engine='pyarrow')
+
+        # Display the retrieved data
+        print(f"Data for User ID: {user_id} at {timestamp}:")
+        
+        # Return the retrieved data
+        return data
+    except Exception as e:
+        print(f"Error retrieving data: {str(e)}")
+        print("Please check if the object exists and ensure the User ID and Timestamp are correct.")
 
 # * ---------------------------------------------------------------------------------------------- MAIN FUNCTION RUNS HERE -----------------------------------------------------------------------------------------------
 # !! This is the main function that runs the program
@@ -96,17 +114,11 @@ def main():
     # Create a Spark session
     spark = SparkSession.builder.appName("SyncMinIO").getOrCreate()
 
-    # Retrieve the JSON data from MinIO
-    user_id, timestamp, json_data = retrieve_data_from_minio()
+    # Retrieve the GPS data from MinIO
+    retrieved_data = read_parquet_data()
 
     # Send data from MinIO back to MQTT. In this case, we send the GPS coordiantes back to the MQTT broker.
-    send_data_to_mqtt(json_data["GPS"])
-
-    # Create a DataFrame from the inputted JSON data
-    exampleDF = create_dataframe_from_json(spark, json_data)
-
-    # Show the DataFrame
-    exampleDF.show()
+    send_data_to_mqtt(retrieved_data)
 
 if __name__ == "__main__":
     main()
