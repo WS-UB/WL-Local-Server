@@ -2,6 +2,9 @@ import json
 from io import BytesIO
 from minio import Minio
 from datetime import datetime
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 # MinIO client setup
 minio_client = Minio(
@@ -13,7 +16,7 @@ minio_client = Minio(
 
 
 def store_received_data(received_data, bucket_name="wl-data"):
-    """Parses the received data and stores it in MinIO with User ID and Timestamp."""
+    """Parses the received data and stores it in MinIO in Parquet format with User ID and Timestamp."""
     print("Storing received data...")
     try:
         # Parse the incoming data (assuming it's a JSON string)
@@ -26,40 +29,39 @@ def store_received_data(received_data, bucket_name="wl-data"):
             print(f"Bucket '{bucket_name}' created.")
 
         # Extract the User ID and Timestamp from the received data
-        user_id = data.get("user_id", "unknown_user")
-        timestamp = data.get("timestamp", datetime.utcnow().isoformat())
+        user_id = data[0].get("user_id", "unknown_user")
+        timestamp = data[0].get("timestamp", datetime.utcnow().isoformat())
 
-        # Convert the rest of the data into a JSON structure to store
-        imu_data = data.get("IMU", {})
-        gps_data = data.get("GPS", {})
-        wifi_data = data.get("WiFi", {})
-        channel_data = data.get("Channel", {})
-
-        # Structure the data to store in MinIO
+        # Convert the data into a DataFrame
         data_entry = {
-            "user_id": user_id,
-            "timestamp": timestamp,
-            "IMU": imu_data,
-            "GPS": gps_data,
-            "WiFi": wifi_data,
-            "Channel": channel_data,
+            "user_id": [user_id],
+            "timestamp": [timestamp],
+            "IMU": [json.dumps(data[0].get("IMU", {}))],
+            "GPS": [json.dumps(data[0].get("GPS", {}))],
+            "WiFi": [json.dumps(data[0].get("WiFi", {}))],
+            "Channel": [json.dumps(data[0].get("Channel", {}))],
         }
+        df = pd.DataFrame(data_entry)
 
-        # Convert data to JSON format for storage
-        json_data = json.dumps(data_entry)
+        # Save DataFrame as Parquet in memory
+        parquet_buffer = BytesIO()
+        df.to_parquet(parquet_buffer, engine="pyarrow", index=False)
+        parquet_buffer.seek(0)
 
         # Define the object name using User ID and Timestamp in the format "UserId/Timestamp"
-        object_name = f"{user_id}/{timestamp}.json"
+        object_name = f"{user_id}/{timestamp}.parquet"
 
         # Store the data in MinIO
         minio_client.put_object(
             bucket_name,
             object_name,
-            BytesIO(json_data.encode("utf-8")),
-            len(json_data),
-            content_type="application/json",
+            parquet_buffer,
+            length=parquet_buffer.getbuffer().nbytes,
+            content_type="application/x-parquet",
         )
-        print(f"Successfully stored data for {user_id} at {timestamp} in MinIO.")
+        print(
+            f"Successfully stored data for {user_id} at {timestamp} in Parquet format."
+        )
     except Exception as e:
         print(f"Error storing data in MinIO: {str(e)}")
 
@@ -86,12 +88,10 @@ def list_objects_in_bucket(bucket_name="wl-data"):
 def retrieve_data_from_minio(bucket_name="wl-data"):
     """Retrieve and print the data from MinIO using User ID and Timestamp."""
 
-    # Ask the user for input
     user_id = input("Please enter the User ID: ")
     timestamp = input("Please enter the Timestamp (format: YYYY-MM-DDTHH:MM:SS): ")
 
-    # Construct the object name using User ID and Timestamp
-    object_name = f"{user_id}/{timestamp}.json"
+    object_name = f"{user_id}/{timestamp}.parquet"
     print(f"Attempting to retrieve object: {object_name} from bucket: {bucket_name}")
 
     try:
@@ -99,18 +99,16 @@ def retrieve_data_from_minio(bucket_name="wl-data"):
         response = minio_client.get_object(bucket_name, object_name)
         print("Object retrieved successfully.")
 
-        # Read and decode the object data
-        data = response.read().decode("utf-8")
-        json_data = json.loads(data)
+        # Read Parquet data into a DataFrame
+        data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
 
-        # Display all the details for the respective user_id and timestamp
+        # Display the retrieved data
         print(f"Data for User ID: {user_id} at {timestamp}:")
-        print(json.dumps(json_data, indent=4))
-
+        print(data)
     except Exception as e:
         print(f"Error retrieving data: {str(e)}")
         print(
-            "Please check if the object exists in the bucket and ensure the User ID and Timestamp are correct."
+            "Please check if the object exists and ensure the User ID and Timestamp are correct."
         )
 
 
