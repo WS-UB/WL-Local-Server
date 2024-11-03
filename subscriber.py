@@ -32,17 +32,10 @@ def connect_mqtt():
 def csi_callback(msg):
     global CLIENT
     # read input ROS message raw data into buffer
-    bstr = b""
     buf = BytesIO()
     msg.serialize(buf)
 
-    # convert iobuf into byte string
-    bstr = buf.getvalue()
-    blen = len(bstr).to_bytes(4, "big")
-
-    # send header and bytestring to ZMQ subscriber
-    bmsg = "0".encode() + b"CSI" + host + bstr
-    CLIENT.publish("/csi", bmsg)
+    CLIENT.publish("/csi", str(msg))
     print(f"send {time.time()}")
 
 
@@ -52,7 +45,7 @@ host = b""
 
 if __name__ == "__main__":
     # tells ROS that we are creating a node
-    # rospy.init_node("csi_pub")
+    rospy.init_node("csi_pub")
 
     # Figure out the hostname of this computer, used so the server will know where the data came from
     host = (
