@@ -22,39 +22,16 @@ MQTT_OUTPUT_TOPIC = "coordinate/topic"  # Topic to send data
 # Suppress all warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# * Feature 1: Retrieve data from MinIO 
-def get_data_from_minio(bucket_name, user_id, timestamp):
-    """Retrieve and return data from MinIO using User ID and Timestamp."""
-    object_name = f"{user_id}/{timestamp}.parquet"
-    print(f"Attempting to retrieve object: {object_name} from bucket: {bucket_name}")
-
-    try:
-        # Retrieve the object from MinIO
-        response = minio_client.get_object(bucket_name, object_name)
-        print("Object retrieved successfully.")
-
-        # Read Parquet data into a DataFrame
-        data = pd.read_parquet(BytesIO(response.read()), engine='pyarrow')
-
-        # Display the retrieved data
-        print(f"Data for User ID: {user_id} at {timestamp}:")
-        
-        return data
-
-    except Exception as e:
-        print(f"Error retrieving data: {str(e)}")
-        return None
-
-# * Feature 2: Retrieve data from MinIO with user_id and timestamp
+# * Feature 1: Retrieve parquet files from MinIO based on user_id and timestamp sent from MQTT.
 def read_parquet_data(user_id, timestamp, bucket_name="wl-data"):
     """Retrieve the data in MinIO with specific user_id and timestamp."""
     object_name = f"{user_id}/{timestamp}.parquet"
-    print(f"Attempting to retrieve object: {object_name} from bucket: {bucket_name}")
+    print(f"\nAttempting to retrieve object: {object_name} from bucket: {bucket_name}")
 
     try:
         # Retrieve the object from MinIO
         response = minio_client.get_object(bucket_name, object_name)
-        print("Object retrieved successfully.")
+        print("Object retrieved successfully:\n")
         
         # Read Parquet data into a DataFrame
         data = pd.read_parquet(BytesIO(response.read()), engine='pyarrow')
@@ -67,22 +44,17 @@ def read_parquet_data(user_id, timestamp, bucket_name="wl-data"):
     except Exception as e:
         print(f"Error retrieving data: {str(e)}")
         print("Please check if the object exists and ensure the User ID and Timestamp are correct.")
+        print("-------------------------------------------------------------------------------------")
         return None
 
-# * Feature 3: Get live user_id and timestamp from MQTT
+# * Feature 2: Get live user_id and timestamp from MQTT
 def on_message(client, userdata, message):
     try:
         # Decode the message payload
         payload = message.payload.decode('utf-8')
-        print(f"Received message: {payload}")  # Log the message
-
-        # Store the received data in MinIO
-        store_received_data(payload)
+        print(f"Received message:\n{payload}")  # Log the message
 
         # Manually parse the payload to extract user_id and timestamp
-        # Assuming the format is:
-        # macAddress: <user_id>
-        # timestamp: <timestamp>
         lines = payload.splitlines()
         user_id = None
         timestamp = None
@@ -95,7 +67,8 @@ def on_message(client, userdata, message):
 
         if user_id and timestamp:
             # Retrieve data from MinIO
-            retrieved_data = read_parquet_data(user_id, timestamp)
+            # retrieved_data = read_parquet_data(user_id, timestamp) # ! Uncomment this line to use real time user_id and timestamp from MQTT 
+            retrieved_data = read_parquet_data("02:00:00:00:00:00", "2024-10-22 18:16:22.530491") # ! For demostration purposes, we are using hardcoded values.
 
             if retrieved_data is not None:
                 # Send the retrieved data back to MQTT
@@ -104,20 +77,30 @@ def on_message(client, userdata, message):
     except Exception as e:
         print(f"Error processing message: {str(e)}")
 
-# * Feature 4: Send data back to MQTT
+# * Feature 3: Send data back to MQTT
 def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_OUTPUT_TOPIC):
-    """Send data to the specified MQTT topic."""
+    """Send GPS data to the specified MQTT topic."""
     # Check if the data is empty or not in the expected format
     if data is not None and not data.empty:
         gps_coordinates_pairs = []
 
         for entry in data.to_dict(orient='records'):
             # Extract latitude and longitude from the GPS column
-            gps_info = json.loads(entry["GPS"])  # Load the GPS data as a dictionary
-            if isinstance(gps_info, dict) and "latitude" in gps_info and "longitude" in gps_info:
-                gps_coordinates_pairs.append((gps_info["latitude"], gps_info["longitude"]))
+            try:
+                # Check if GPS is a dict or a JSON string
+                gps_info = entry["GPS"]
+                if isinstance(gps_info, str):
+                    gps_info = json.loads(gps_info)  # Load the GPS data as a dictionary
+
+                if isinstance(gps_info, dict) and "latitude" in gps_info and "longitude" in gps_info:
+                    gps_coordinates_pairs.append((gps_info["latitude"], gps_info["longitude"]))
+            except json.JSONDecodeError:
+                print("Error decoding JSON in GPS column for entry:", entry)
+            except Exception as e:
+                print(f"Error processing entry: {e}")
 
         if gps_coordinates_pairs:
+            # Convert the GPS data to JSON format for MQTT
             data_payload = json.dumps(gps_coordinates_pairs)
 
             # Initialize the MQTT client
@@ -132,9 +115,11 @@ def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_OUTPU
                 
                 # Check if the publish was successful
                 if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                    print(f"Data published to MQTT topic '{topic}' successfully.")
+                    print(f"\nData published to MQTT topic '{topic}' successfully.")
+                    print("----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
                 else:
-                    print(f"Failed to publish data to MQTT topic '{topic}'. Error code: {result.rc}")
+                    print(f"Failed to publish data to MQTT topic '{topic}'. Error code: {result.rc}\n")
+                    print("----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
             
             except Exception as e:
                 print(f"Error sending data to MQTT: {e}")
@@ -146,69 +131,6 @@ def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_OUTPU
             print("No valid GPS coordinates found to send to MQTT.")
     else:
         print("No data to send to MQTT.")
-
-def store_received_data(received_data, bucket_name="wl-data"):
-    """Parses the received data and stores it in MinIO in Parquet format with User ID and Timestamp."""
-    print("Storing received data...")
-    try:
-        # Initialize the variables
-        user_id = None
-        timestamp = None
-        imu_data = {}
-        gps_data = {}
-
-        # Split the received data into lines and extract values
-        for line in received_data.splitlines():
-            if line.startswith("macAddress:"):
-                user_id = line.split(": ")[1].strip()
-            elif line.startswith("timestamp:"):
-                timestamp = line.split(": ")[1].strip()
-            elif line.startswith("gyro:"):
-                # Assuming gyro data is a list
-                imu_data['gyro'] = [float(value) for value in line.split(": ")[1].strip().split(",")]
-            elif line.startswith("accel:"):
-                # Assuming accel data is a list
-                imu_data['accel'] = [float(value) for value in line.split(": ")[1].strip().split(",")]
-            elif line.startswith("GPS:"):
-                # Split the GPS coordinates
-                lat_long = line.split(": ")[1].strip().split(", ")
-                gps_data = {
-                    "latitude": float(lat_long[0]),
-                    "longitude": float(lat_long[1])
-                }
-
-        # If user_id or timestamp is not found, use defaults
-        user_id = user_id or "unknown_user"
-        timestamp = timestamp or datetime.utcnow().isoformat()
-
-        # Convert the data into a DataFrame
-        data_entry = {
-            "user_id": [user_id],
-            "timestamp": [timestamp],
-            "IMU": [json.dumps(imu_data)],
-            "GPS": [json.dumps(gps_data)],
-        }
-        df = pd.DataFrame(data_entry)
-
-        # Save DataFrame as Parquet in memory
-        parquet_buffer = BytesIO()
-        df.to_parquet(parquet_buffer, engine='pyarrow', index=False)
-        parquet_buffer.seek(0)
-
-        # Define the object name using User ID and Timestamp in the format "UserId/Timestamp"
-        object_name = f"{user_id}/{timestamp}.parquet"
-
-        # Store the data in MinIO
-        minio_client.put_object(
-            bucket_name,
-            object_name,
-            parquet_buffer,
-            length=parquet_buffer.getbuffer().nbytes,
-            content_type="application/x-parquet"
-        )
-        print(f"Successfully stored data for {user_id} at {timestamp} in Parquet format.")
-    except Exception as e:
-        print(f"Error storing data in MinIO: {str(e)}")
 
 # * ---------------------------------------------------------------------------------------------- MAIN FUNCTION RUNS HERE -----------------------------------------------------------------------------------------------
 
@@ -228,7 +150,7 @@ def main():
 
         # Start the loop to listen for messages
         client.loop_start()
-        print(f"Listening for messages on topic: {MQTT_INPUT_TOPIC}")
+        print(f"Listening for messages on topic: {MQTT_INPUT_TOPIC}\n")
 
         # Keep the function running to listen for messages
         while True:
