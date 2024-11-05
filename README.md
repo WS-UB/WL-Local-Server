@@ -53,7 +53,7 @@ Our current goals for the server-side aspect of this project include:
 - Gather and store user navigation data in a database.
 - Use stored reliable data for an A.I. training model.
 
-### Usage:
+## Usage:
 
 This project directory consists of four nodes:
 
@@ -68,35 +68,57 @@ The script connects to an existing MinIO server located in the Wiloc SSH, sendin
 - [MQTT_Handler.py](./src/MQTT_Handler.py): A basic MQTT Handler class that can subscribe and publish to a server topic. This MQTT Handler class was made as a reference for how an MQTT Handler should be formatted, being used and modified in the imu_gps_publisher.py to receive IMU and GPS data, which is then published to a MinIO server being run on the Wiloc server. The format of this MQTT Handler can be used for future MQTT connections.
 - [Subscriber.py](./subscriber.py): A subscriber that creates and MQTT connection with a rasberry pi in order to send wifi data to the Wiloc SSH server (tcp://128.205.218.189:1883). 
 
-### Application Information:
+## Application Information:
 
 In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use an application called [MQTT](https://github.com/eclipse/mosquitto).
 
 - There are various ways to retrieve the Inertial Measurement(IMU) and GPS readings and from the phone. However, the imu_gps_publisher script achieves this by connecting the Android phone to the Wiloc MQTT server and publishing new IMU and GPS data every 500ms.
 
-### Set Up:
+## Set Up:
+
+### 1: Install MQTT and MinIO Python packages.
 
 - To install the IMU and GPS synchronization package, clone this repository into a directory of your choosing and install the following Python packages from your command line:
 
         pip3 install paho-mqtt
         pip3 install minio
 
-- To install the Elastic search package, clone this repository into a directory of your choosing and install the following Debian packages from your command line:
+### 2: Run the WLMap Application.
+
+- Next travel to Android Studio and run the WLMap application. If you have not already cloned the WLMap repository, follow this [link](https://github.com/WS-UB/WLMap).
+
+- If you are prompted to create an emulation Android device, select a "Google Pixel 7a."
+
+- Once running the WLMap application, select the "Data Collection" option on the main menu.
+
+- Open LogCat and confirm that an MQTT connection has been established and that IMU and GPS data is being streamed to the WILOC server. If you are receiving a connection error in the LogCat terminal, restart the application.
+
+### 3: Enable the MinIO server.
+
+- ssh into the WILOC server:
 
 ```
-    wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.15.2-amd64.deb
-    wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.15.2-amd64.deb.sha512
-    shasum -a 512 -c elasticsearch-8.15.2-amd64.deb.sha512
-    sudo dpkg -i elasticsearch-8.15.2-amd64.deb
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: robot_wireless
 ```
 
-- Next, you run Elasticsearch by using the following command lines:
+- When in the WILOC server, run the following command:
 
 ```
-    sudo /bin/systemctl daemon-reload
-    sudo /bin/systemctl enable elasticsearch.service
-    sudo systemctl start elasticsearch.service
+        MINIO_ROOT_USER=admin MINIO_ROOT_PASSWORD=password ./minio server /mnt/data --console-address ":9001"
 ```
+
+### 4: Run the IMU/GPS/WiFi synchronizer
+
+- If the WiFi router and Raspberry Pi are connected and sending WiFi data, run the imu_gps_WiFi_publisher.py script.
+
+- If the WiFi router and Raspberry Pi are NOT connected, run the sync_WiFi_test.py script, and in a separate terminal, run the following commands.
+
+```
+        cd ~Pathname to your WL-Local-Server repo~
+        python3 WiFi_test.py
+```
+
 
 ## Project Roadmap
 
@@ -108,5 +130,5 @@ Elasticsearch Application: https://github.com/elastic/elasticsearch
 - [x] GPS data is received from the Android Phone via an MQTT Handler.
 - [x] IMU and GPS data are synchronized within 500ms of each other.
 - [x] Synchronized data can be sent to a MinIO server.
-- [ ] WiFi data is received from the RPI via an MQTT Handler.
-- [ ] WiFi data is synchronized with IMU and GPS data within 500ms of each other.
+- [x] WiFi data is received from the RPI via an MQTT Handler.
+- [x] WiFi data is synchronized with IMU and GPS data within 500ms of each other.
