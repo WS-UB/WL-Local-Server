@@ -55,18 +55,19 @@ Our current goals for the server-side aspect of this project include:
 
 ### Usage:
 
-This project directory consists of four nodes:
+This project directory consists of five nodes:
 
-- [elastic_read](./src/elastic_read.py): This file allows the user to access the local MinIO database and insert the JSON data from MinIO to the local Elasticsearch database. In addition, this file can interact with the local Elasticsearch database by inserting new data queries from MinIO, removing available datasets from Elasticsearch, and showing available datasets in the local Elasticsearch database.
+- [sync_minio_and_mqtt](./src/sync_minio_and_mqtt.py): This file will receive the message from the MQTT broker and use the User ID and Timestamp to retrieve parquet files from the MinIO database. In addition, the file also includes functions that read the parquet file, process the GPS value, and send the new GPS coordinates back to the MQTT broker, where the application will update the latest GPS coordinates. 
 
-- [minio_script](./src/minio_script.py): This file allows the user to parse the received queries from Elasticsearch and store them in MinIO with User ID and Timestamp. In addition, the file can list all objects in the specified bucket to verify if the data has been stored or not and showing the available dataset in the local MinIO database by using User ID and Timestamp.
+- [minio_script](./src/minio_script.py): This file allows the user to parse the received queries from MQTT and store them in MinIO in the format of parquet files. More specifically, the file will parse the information from MQTT, turn it into a parquet file, and use the receiving User ID and Timestamp from MQTT as the name of the file. In addition, the file can list all parquet files in the specified bucket to verify if the data has been stored or not and show the available dataset in the local MinIO database by using the User ID and Timestamp.
 
 The script connects to an existing MinIO server located in the Wiloc SSH, sending accelerometer, gyroscope, GPS, and WiFi data. This data is buffered and synchronized based on timestamps in the imu_gps_publisher.py script. The node also handles errors, and reconnection attempts, and shuts down gracefully when interrupted (Ctrl+C).
 
 - [imu_gps_publisher.py](./src/imu_gps_publisher.py): An MQTT script that connects to the MQTT server that is receiving WiFi data from 4 RPI's as well as receiving GPS and IMU data from an Android Phone running the WLMap application. It establishes an MQTT connection to the Wiloc SSH server (tcp://128.205.218.189:1883) and listens for incoming GPS, IMU, and WiFi data, extracting accelerometer and gyroscope XYZ values, latitude and longitude values, timestamps, and WiFI routing information. These values are then packaged into a MinIO bucket and published to the Wiloc MinIO server. The script also handles connection events, errors, and graceful shutdowns when receiving a termination signal (Ctrl+C).
 
 - [MQTT_Handler.py](./src/MQTT_Handler.py): A basic MQTT Handler class that can subscribe and publish to a server topic. This MQTT Handler class was made as a reference for how an MQTT Handler should be formatted, being used and modified in the imu_gps_publisher.py to receive IMU and GPS data, which is then published to a MinIO server being run on the Wiloc server. The format of this MQTT Handler can be used for future MQTT connections.
-- [Subscriber.py](./subscriber.py): A subscriber that creates and MQTT connection with a rasberry pi in order to send wifi data to the Wiloc SSH server (tcp://128.205.218.189:1883) This data is then synchronized and sent to MinIO to be retrieved upon user request. In order to get more information on retrieving and using the wifi data with the RPI please see https://github.com/ucsdwcsng/wiros_csi_node for more information about how to start the wiros node on the Rasberry Pi. 
+  
+- [Subscriber.py](./subscriber.py): A subscriber that creates an MQTT connection with a Raspberry PI in order to send Wifi data to the Wiloc SSH server (tcp://128.205.218.189:1883) This data is then synchronized and sent to MinIO to be retrieved upon user request. To get more information on retrieving and using the wifi data with the RPI please see https://github.com/ucsdwcsng/wiros_csi_node for more information about how to start the wiros node on the Rasberry Pi. 
 
 ### Application Information:
 
@@ -119,28 +120,26 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
         python3 WiFi_test.py
 ```
 
-- To install the Elastic search package, clone this repository into a directory of your choosing and install the following Debian packages from your command line:
 
+### 5: Run the MQTT Broker
+
+- To show the message that is sent from the phone application to the back-end server, SSH into the WILOC server and then run the following commands:
 ```
-    wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.15.2-amd64.deb
-    wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.15.2-amd64.deb.sha512
-    shasum -a 512 -c elasticsearch-8.15.2-amd64.deb.sha512
-    sudo dpkg -i elasticsearch-8.15.2-amd64.deb
+        cd imu_publisher/
+        mosquitto_sub -h 128.205.218.189 -t 'test/topic'
 ```
 
-- Next, you run Elasticsearch by using the following command lines:
+- To show the data that is sent back to the phone application via MQTT broker, SSH into the WILOC server and then run the following commands:
+```
+        cd imu_publisher/
+        mosquitto_sub -h 128.205.218.189 -t 'coordinate/topic'
+```
 
-```
-    sudo /bin/systemctl daemon-reload
-    sudo /bin/systemctl enable elasticsearch.service
-    sudo systemctl start elasticsearch.service
-```
+
 
 ## Project Roadmap
 
 ### Server-side Data Management
-
-Elasticsearch Application: https://github.com/elastic/elasticsearch
 
 - [x] IMU data is received from the Android Phone via an MQTT Handler.
 - [x] GPS data is received from the Android Phone via an MQTT Handler.
@@ -148,3 +147,6 @@ Elasticsearch Application: https://github.com/elastic/elasticsearch
 - [x] Synchronized data can be sent to a MinIO server.
 - [x] WiFi data is received from the RPI via an MQTT Handler.
 - [x] WiFi data is synchronized with IMU and GPS data within 500ms of each other.
+- [x] Parse the message that is sent to the MQTT broker.
+- [x] Retrieve and read the parquet file based on the User ID and Timestamp that is sent from the MQTT broker.
+- [x] Get the GPS Coordinates from the read parquet file and send it back to the MQTT broker.
