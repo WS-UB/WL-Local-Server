@@ -9,10 +9,10 @@ from minio.error import S3Error
 
 # Create MinIO client
 minio_client = Minio(
-    "100.100.100.100:9000",  # MinIO server address
-    access_key="minio",  # MinIO access key
-    secret_key="minio",  # MinIO secret key
-    secure=False  # Set to True if using HTTPS
+    "128.205.218.189:9000",  # Replace with your MinIO server address
+    access_key="admin",      # MinIO access key
+    secret_key="password",   # MinIO secret key
+    secure=False             # Set to True if using HTTPS
 )
 
 # Function to upload to MinIO
