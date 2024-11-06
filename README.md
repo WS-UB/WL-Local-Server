@@ -20,4 +20,6 @@ Real-time data ingestion via MQTT.
 Query and analysis using Elasticsearch.
 Docker support for easy deployment.
 
+### Usage:
+minio_script: This file allows the user to parse the received queries from Elasticsearch and store them in MinIO with User ID and Timestamp. In addition, the file can list all objects in the specified bucket to verify if the data has been stored or not and showing the available dataset in the local MinIO database by using User ID and Timestamp.
 
