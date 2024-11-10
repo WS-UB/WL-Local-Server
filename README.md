@@ -1,8 +1,16 @@
-# WL-Local-Server
+# WL-Local-Server Feature Branch: synchronize-imu-gps-RPI
 
 ## Introduction
 
-This repo provides code to receive and synchronize IMU, GPS, and WiFi data using an MQTT server. The synchronized data is then sent to a MinIO database, interacting with Elasticsearch to stream data on a local server, demonstrating how to interact with Elasticsearch to store, retrieve, and manage data effectively.
+This branch implements the sending of synchronized IMU (gyroscope and accelerometer) GPS, and WiFi data to the MinIO database for data collection of the WLMap application. The goal of this feature is to retrieve IMU, GPS, and WiFi data, synchronize the data within 100ms of each other, and send the synchronized data to a MinIO bucket that is named based on the device MAC address and timestamp. This synchronized data will be used for data collection for an A.I. training model, as well as being able to provide the user with their GPS location if requested.
+
+## Key Changes
+This feature introduces the following changes:
+
+   - A basic MQTT Handler class that can be used as a reference for future iterations.
+   - An IMU, GPS, and WiFi synchronizer script (imu_gps_WiFi_publisher.py).
+   - A test script that continuously sends fake WiFi to test the synchronizer script (wiFi_test.py)
+   - A test script that retrieves the fake WiFi data and syncs it with IMU and GPS data (sync_WiFi_test.py)
 
 ## Table of Contents:
 
@@ -75,6 +83,12 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 - There are various ways to retrieve the Inertial Measurement(IMU) and GPS readings and from the phone. However, the imu_gps_publisher script achieves this by connecting the Android phone to the Wiloc MQTT server and publishing new IMU and GPS data every 500ms.
 
 ## Set Up:
+
+Open your terminal and cd to your repository directory, then enter the following command:
+
+```
+        git checkout feature/syncronize-imu-gps-RPI
+```
 
 ### 1: Install MQTT and MinIO Python packages.
 
