@@ -90,9 +90,13 @@ def main():
     user_id = "02:00:00:00:00:00"
 
     # * Obtain the list of dataframes for the specified hour and minute range
-    data_list = retrieve_hour_range_data("wl-data", user_id, 18, 18, 0, 50)
+    data_list = retrieve_hour_range_data("wl-data", user_id, 18, 18, 0, 30)
+    print("---------- RETRIEVED DATA FRAMES -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+    print(data_list)
+    print("\n\n")
 
     # * Add a new column to the obtained list of dataframes
+    print("---------- MODIFIED DATA FRAMES -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
     add_new_data(key, value, data_list)
 
 if __name__ == "__main__":
