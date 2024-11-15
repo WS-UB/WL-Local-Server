@@ -34,13 +34,13 @@ def add_new_data(key, value, data_list):
         print(f"Error adding new data: {str(e)}")
         return None
 
-# * Feature 2: Retrieve certain range of parquet files from MinIO based on the given range of hour and minute.
+# * Feature 2: Retrieve the name of parquet files from MinIO based on the given range of hour and minute.
 def retrieve_hour_range_data(bucket_name, user_id, start_hour, end_hour, start_minute, end_minute):
     # Check if the hour and minute are within the valid range
     if (start_hour >= 0 or start_hour <= 23) and (end_hour >= 0 or end_hour <= 23) and (start_hour <= end_hour):
         if (start_minute >= 0 or start_minute <= 59) and (end_minute >= 0 or end_minute <= 59) and (start_minute <= end_minute):
             # Create an empty list to store the filtered files
-            filtered_files = []
+            file_names = []
             
             # List objects in the specified bucket and prefix
             objects = minio_client.list_objects(bucket_name, prefix=user_id + "/", recursive=True)
@@ -58,23 +58,19 @@ def retrieve_hour_range_data(bucket_name, user_id, start_hour, end_hour, start_m
                         # Obtain the hour and minute from the datetime object
                         file_hour = file_datetime.hour
                         file_minute = file_datetime.minute
-                        
+
                         # Check if file hour is within the specified range
                         if (start_hour <= file_hour <= end_hour) and (start_minute <= file_minute <= end_minute):
-                            # Retrieve the object from MinIO
-                            response = minio_client.get_object(bucket_name, obj.object_name)
+                            file_names.append(obj.object_name[:-8])
 
-                            # Read Parquet data into a DataFrame
-                            try:
-                                data = pd.read_parquet(BytesIO(response.read()), engine='pyarrow')
-                                # Insert the DataFrame into the list of filtered files
-                                filtered_files.append(data)
-                            except Exception as e:
-                                print(f"Error reading object {obj.object_name}: {str(e)}")
                     # Throw an error if the file format is not parquet.
                     except ValueError:
                         print(f"Skipping file with unexpected format: {obj.object_name}")
-            return filtered_files
+
+            # We add the key to the last element of the list to request for certain column of data from the parquet file
+            # ! We're testing in getting the GPS data from the parquet file for now.
+            file_names.append("GPS")
+            return file_names
         else:
             print("Invalid minute range. Please enter a valid minute range.")
             return []
@@ -90,14 +86,9 @@ def main():
     user_id = "02:00:00:00:00:00"
 
     # * Obtain the list of dataframes for the specified hour and minute range
-    data_list = retrieve_hour_range_data("wl-data", user_id, 18, 18, 0, 30)
-    print("---------- RETRIEVED DATA FRAMES -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-    print(data_list)
-    print("\n\n")
-
-    # * Add a new column to the obtained list of dataframes
-    print("---------- MODIFIED DATA FRAMES -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-    add_new_data(key, value, data_list)
+    file_names_list = retrieve_hour_range_data("wl-data", user_id, 18, 18, 0, 30)
+    print(file_names_list)
+    # add_new_data(key, value, data_list)
 
 if __name__ == "__main__":
     main()
