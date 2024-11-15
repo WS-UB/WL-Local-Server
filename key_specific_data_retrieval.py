@@ -2,7 +2,6 @@ import json
 import pandas as pd
 from io import BytesIO
 from minio import Minio
-import paho.mqtt.client as mqtt
 
 # MinIO Client Configuration
 minio_client = Minio(
@@ -12,124 +11,147 @@ minio_client = Minio(
     secure=False             # Set to True if using HTTPS
 )
 
-# MQTT Broker Configuration
-MQTT_BROKER = "128.205.218.189"  # Replace with your MQTT broker address
-MQTT_PORT = 1883
-MQTT_INPUT_TOPIC = "data/request"
-MQTT_OUTPUT_TOPIC = "data/response"
+# Function to parse the list of strings into the expected format
+def parse_query_list(query_list):
+    """
+    Parses the query list into requests (user_id, timestamps) and fields.
+    """
+    try:
+        user_ids = list({item for item in query_list if ":" in item})  # User IDs typically contain colons
+        timestamps = [item for item in query_list if " " in item]  # Identify timestamps based on space
+        fields = query_list[len(user_ids) + len(timestamps):]  # Remaining items are fields
+
+        if not user_ids:
+            raise ValueError("No user_id provided in the query.")
+
+        # Generate requests for all combinations of user_ids and timestamps
+        requests = []
+        for user_id in user_ids:
+            if timestamps:
+                requests.extend([{"user_id": user_id, "timestamp": ts} for ts in timestamps])
+            else:
+                requests.append({"user_id": user_id})  # Retrieve all timestamps for this user_id if none provided
+
+        return requests, fields
+    except Exception as e:
+        print(f"Error parsing query list: {str(e)}")
+        return None, None
+
+
+# Function to list all objects in MinIO for a given user_id
+def list_user_objects(user_id, bucket_name="wl-data"):
+    """
+    List all objects for a given user_id in the specified bucket.
+    """
+    try:
+        objects = minio_client.list_objects(bucket_name, prefix=f"{user_id}/", recursive=True)
+        return [obj.object_name.split("/")[-1].replace(".parquet", "") for obj in objects]
+    except Exception as e:
+        print(f"Error listing objects for user_id {user_id}: {e}")
+        return []
+
 
 # Function to retrieve data for multiple user_id and timestamp pairs with specific fields
 def retrieve_data(requests, fields=None, bucket_name="wl-data"):
+    """
+    Retrieve data from MinIO based on user_id, timestamp, and fields.
+    """
     all_results = {}
 
-    # Loop through each user_id and timestamp pair in the requests
     for request in requests:
         user_id = request.get("user_id")
         timestamp = request.get("timestamp")
-        if not user_id or not timestamp:
-            continue  # Skip if user_id or timestamp is missing
 
-        try:
-            # Define the object path based on user_id and timestamp
-            object_name = f"{user_id}/{timestamp}.parquet"
-            response = minio_client.get_object(bucket_name, object_name)
-
-            # Read data and check for requested fields
-            try:
-                data = pd.read_parquet(BytesIO(response.read()), engine='pyarrow')
-            except Exception as e:
-                print(f"Error: Could not read object {object_name} as Parquet. Check if the file exists and is valid. Error: {e}")
-                all_results[f"{user_id}_{timestamp}"] = "Error: Could not read data"
+        if not timestamp:
+            timestamps = list_user_objects(user_id, bucket_name)
+            if not timestamps:
+                all_results[user_id] = {"error": "No data available for this user_id"}
                 continue
+        else:
+            timestamps = [timestamp]
 
-            # Collect data for each requested field
-            results = {}
-            for field in fields:
-                field_found = False
-                # Search each column for the field if it exists in the data
-                for column in data.columns:
-                    main_data = data[column].iloc[0]
-                    # Convert to dictionary if stored as JSON string
-                    if isinstance(main_data, str):
-                        main_data = json.loads(main_data)
-                    elif not isinstance(main_data, dict):
-                        continue  # Skip columns that are not JSON-like
+        for ts in timestamps:
+            object_name = f"{user_id}/{ts}.parquet"
+            try:
+                response = minio_client.get_object(bucket_name, object_name)
+                data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
 
-                    # Check if field is atomic (direct match) or complex (nested dictionary)
-                    if field in main_data:
-                        # If field is atomic, retrieve it directly
-                        results[field] = main_data[field]
-                        field_found = True
-                        break
-                    elif isinstance(main_data, dict) and field in main_data:
-                        # If field is complex, add all nested fields to results
-                        for sub_key, sub_value in main_data.items():
-                            results[sub_key] = sub_value
-                        field_found = True
-                        break
+                results = {}
+                for field in fields:
+                    field_found = False
+                    for column in data.columns:
+                        try:
+                            field_data = data[column].iloc[0]
+                            if isinstance(field_data, str):
+                                field_data = json.loads(field_data)
 
-                if not field_found:
-                    results[field] = f"No data found for '{field}'"
+                            if isinstance(field_data, dict) and field in field_data:
+                                results[field] = field_data[field]
+                                field_found = True
+                                break
+                        except Exception as e:
+                            print(f"Error processing field {field}: {e}")
 
-            # Store results for this user_id and timestamp
-            all_results[f"{user_id}_{timestamp}"] = results if results else "No data found for requested fields"
+                    if not field_found:
+                        results[field] = f"No data found for '{field}'"
 
-        except Exception as e:
-            print(f"Error retrieving data for {user_id} at {timestamp}: {str(e)}")
-            all_results[f"{user_id}_{timestamp}"] = "Error: Unable to retrieve data"
+                all_results[f"{user_id}_{ts}"] = {
+                    "user_id": user_id,
+                    "timestamp": ts,
+                    "data": results if results else "No data found for requested fields",
+                }
+            except Exception as e:
+                print(f"Error retrieving object {object_name}: {e}")
+                all_results[f"{user_id}_{ts}"] = f"Error: Unable to retrieve data for {object_name}"
 
     return all_results if all_results else None
 
-# Function to handle incoming MQTT messages and process multiple user_id/timestamp pairs
-def on_message(client, userdata, message):
-    try:
-        # Load payload from the incoming MQTT message
-        payload = json.loads(message.payload.decode('utf-8'))
-        requests = payload.get("requests")  # Expecting [{"user_id": "example_user1", "timestamp": "2024-10-07T12:40:00"}, ...]
-        fields_to_retrieve = payload.get("fields")  # Expecting fields in the form ["csi_imag", "nss", ...]
 
-        # Validate required fields
-        if requests and fields_to_retrieve:
-            # Retrieve data for the specified requests and fields
-            results = retrieve_data(requests, fields_to_retrieve)
+# Main function to handle query and return results
+def handle_query(query_list):
+    """
+    Main handler for the query. Parses the query and retrieves the requested data.
+    """
+    requests, fields_to_retrieve = parse_query_list(query_list)
+    if requests and fields_to_retrieve:
+        results = retrieve_data(requests, fields_to_retrieve)
+        return results
+    else:
+        print("Invalid query format or missing data in the query list.")
+        return None
 
-            # Convert results to JSON format for MQTT response
-            if results is not None:
-                response_data = json.dumps(results)
-            else:
-                response_data = "No data found for requested fields."
 
-            # Publish response back to MQTT
-            client.publish(MQTT_OUTPUT_TOPIC, response_data)
-            print("Sent data for requested user_id/timestamp pairs and fields.")
-        else:
-            print("Invalid request: requests and fields are required in the payload.")
-    except Exception as e:
-        print(f"Error processing message: {str(e)}")
+# Test cases
+def run_tests():
+    """
+    Run a series of test cases to validate the functionality.
+    """
+    test_cases = [
+        {"description": "Query without timestamp (retrieve all timestamps)", "query_list": ["02:00:00:00:00:00", "GPS"]},
+        {"description": "Multiple keys in query", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:22", "GPS", "rssi"]},
+        {"description": "Only keys provided (no timestamps)", "query_list": ["02:00:00:00:00:00", "GPS", "rssi"]},
+        {"description": "Invalid timestamp format", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16", "GPS"]},
+        {"description": "Non-existent timestamp", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:59", "GPS"]},
+        {"description": "Empty query list", "query_list": []},
+        {"description": "No field provided, only timestamps", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:22"]},
+    ]
 
-# Initialize MQTT Client and configure message handling
-def setup_mqtt_client():
-    client = mqtt.Client()
-    client.on_message = on_message
-    client.connect(MQTT_BROKER, MQTT_PORT)
-    client.subscribe(MQTT_INPUT_TOPIC)
-    client.loop_start()
-    print(f"Listening on topic '{MQTT_INPUT_TOPIC}' for data requests...")
+    for i, test_case in enumerate(test_cases, 1):
+        print(f"\nRunning Test Case {i}: {test_case['description']}")
+        result = handle_query(test_case["query_list"])
+        print("Query Result:", json.dumps(result, indent=4))
 
-    return client
-
-# Main function to start the MQTT client
-def main():
-    setup_mqtt_client()
-    # Keep the program running
-    try:
-        while True:
-            pass
-    except KeyboardInterrupt:
-        print("Program interrupted.")
-    finally:
-        print("Stopping MQTT client.")
-        mqtt.Client().loop_stop()
 
 if __name__ == "__main__":
-    main()
+    print("1. Run Example Query")
+    print("2. Run All Tests")
+    choice = input("Enter your choice: ")
+
+    if choice == "1":
+        query_list = ["02:00:00:00:00:00", "2024-10-22 18:16:22.530491", "GPS", "rssi"]
+        result = handle_query(query_list)
+        print("Example Query Result:", json.dumps(result, indent=4))
+    elif choice == "2":
+        run_tests()
+    else:
+        print("Invalid choice. Exiting.")
