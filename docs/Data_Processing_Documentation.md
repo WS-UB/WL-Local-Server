@@ -9,6 +9,15 @@ This feature introduces the following changes:
   - Implementing a feature that can insert a new data item in a set of given parquet files
   - Implementing a feature that can retrieve a set of parquet files based on the chosen range of hour and minute.
 
+### Usage:
+This project directory consists of two nodes and three files:
+
+- [gps_publisher.py](./src/gps_publisher.py): A ROS node that connects to a WebSocket server to receive GPS data and publish it as a ROS topic. It establishes a WebSocket connection to a specified URL (ws://localhost:8090/gps) and listens for incoming GPS data in JSON format, extracting latitude and longitude values. These values are then packaged into a NavSatFix message and published to the /gps ROS topic. The script also handles connection events, errors, and graceful shutdown on receiving a termination signal (Ctrl+C). Additionally, it periodically sends a "getLastKnownLocation" request to the WebSocket server to fetch the latest GPS coordinates.
+- [imu_publisher.py](./src/imu_publisher.py): A ROS node designed to collect and publish IMU (Inertial Measurement Unit) data from an Android device to a ROS topic. The script connects to a WebSocket server using a specified URL(ws://localhost:8090/sensors/connect?types={self.encoded_types}), retrieving accelerometer and gyroscope data. This data is buffered, synchronized based on timestamps, and then published as an Imu message to the /imu ROS topic. The node also handles errors, reconnection attempts, and shuts down gracefully when interrupted (Ctrl+C). The data synchronization ensures that the IMU data is aligned in time before being published.
+- [data_processing.py](./src/data_processing.py): This file will be the center of data processing and cleaning. In this file, we implement features that retrieves data from the MinIO database based on the chosen range of time and add new columns of data into any list of dataframes we want to choose from.
+- [retrieve_data_from_minio.py](./src/retrieve_data_from_minio.py): This file will be used as a pipeline between MinIO and MQTT. In this file, we implement a function that receives multiple message request from the MQTT broker (which is sent from the phone) and use the information from the query to receive data from MinIO. Once we receive the data, we will use it for data processing and send the necessary information back the application's MQTT subscriber.
+- [sync_minio_and_mqtt.py](./src/sync_minio_and_mqtt.py): This file will be used as a pipeline between MinIO and MQTT. In this file, we implement a function that receives multiple message request from the MQTT broker (which is sent from the phone) and use the information from the query to receive data from MinIO. Once we receive the data, we will use it for data processing and send the necessary information back the application's MQTT subscriber.
+
 ## Problem Definition
 
 We aim to create a stable Android mobile application for indoor navigation and WiFi-based data collection. This semester, we will focus on resolving technical issues with the data collection app, enhancing the user interface, and integrating server-side data processing using AWS. Additionally, we will develop a functional navigational interface similar to Google Maps, enabling users to track their indoor location within large buildings like malls and airports. In the long term, we aspire to deploy a fully functional, scalable system that enables seamless indoor navigation by utilizing WiFi signals and real-time data collection. By leveraging machine learning models, we will enhance accuracy in indoor positioning, ensuring privacy and efficiency through the use of hashed user data. Our goal is to provide a robust and open-source platform that can be adapted for various large-scale indoor environments.
@@ -89,7 +98,6 @@ Python is mostly used for collecting, processing, and passing through AI models 
    python3 <file_name>.py
 ```
 Note: The file name must be located in the cloned repository
-
 
 
 ## Project Roadmap
