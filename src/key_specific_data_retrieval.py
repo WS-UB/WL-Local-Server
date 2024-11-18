@@ -1,7 +1,8 @@
-import json
 import pandas as pd
 from io import BytesIO
+from io import StringIO
 from minio import Minio
+from typing import List, Dict, Any
 
 # MinIO Client Configuration
 minio_client = Minio(
@@ -11,154 +12,154 @@ minio_client = Minio(
     secure=False             # Set to True if using HTTPS
 )
 
-# Function to parse the list of strings into the expected format
-def parse_query_list(query_list):
+def parse_automated_input(input_list):
     """
-    Parses the query list into requests (user_id, timestamps) and fields.
+    Parse the automated input list format where:
+    - Each element except last two are lists of parquet files for respective user IDs
+    - Last two elements are keys
+    Returns: user_ids, timestamps, and keys
     """
-    try:
-        user_ids = list({item for item in query_list if "02:" in item})  # User IDs typically contain colons
-        timestamps = [item for item in query_list if " " in item]  # Identify timestamps based on space
-        fields = query_list[len(user_ids) + len(timestamps):]  # Remaining items are fields
-
-        print("User IDs:", user_ids)
-        print("Timestamps:", timestamps)
-        print("Fields:", fields)
-
-        if not user_ids:
-            raise ValueError("No user_id provided in the query.")
-
-        # Generate requests for all combinations of user_ids and timestamps
-        requests = []
-        for user_id in user_ids:
-            if timestamps:
-                requests.extend([{"user_id": user_id, "timestamp": ts} for ts in timestamps])
-            else:
-                requests.append({"user_id": user_id})  # Retrieve all timestamps for this user_id if none provided
-
-        print("Requests:", requests)
-        print("Fields to Retrieve:", fields)
-
-        return requests, fields
-    except Exception as e:
-        print(f"Error parsing query list: {str(e)}")
-        return None, None
-
-
-# Function to list all objects in MinIO for a given user_id
-def list_user_objects(user_id, bucket_name="wl-data"):
-    """
-    List all objects for a given user_id in the specified bucket.
-    """
-    try:
-        objects = minio_client.list_objects(bucket_name, prefix=f"{user_id}/", recursive=True)
-        return [obj.object_name.split("/")[-1].replace(".parquet", "") for obj in objects]
-    except Exception as e:
-        print(f"Error listing objects for user_id {user_id}: {e}")
-        return []
-
-
-# Function to retrieve data for multiple user_id and timestamp pairs with specific fields
-def retrieve_data(requests, fields=None, bucket_name="wl-data"):
-    """
-    Retrieve data from MinIO based on user_id, timestamp, and fields.
-    """
-    all_results = {}
-
-    for request in requests:
-        user_id = request.get("user_id")
-        timestamp = request.get("timestamp")
-
-        if not timestamp:
-            timestamps = list_user_objects(user_id, bucket_name)
-            if not timestamps:
-                all_results[user_id] = {"error": "No data available for this user_id"}
-                continue
-        else:
-            timestamps = [timestamp]
-
-        for ts in timestamps:
-            object_name = f"{user_id}/{ts}.parquet"
+    if len(input_list) < 3:  # Need at least one user data list and two keys
+        raise ValueError("Input list must contain at least one user data list and two keys")
+    
+    # Extract keys (last two elements)
+    keys = input_list[-2:]
+    
+    # Process user data lists (all elements except last two)
+    user_data = input_list[:-2]
+    
+    user_ids = set()
+    timestamps = set()
+    
+    # Process each user's parquet file list
+    for parquet_list in user_data:
+        for parquet_file in parquet_list:
+            # Extract user_id and timestamp from parquet filename
             try:
+                user_id, timestamp = parquet_file.split('/')
+                user_ids.add(user_id)
+                # Remove .parquet extension if present
+                timestamp = timestamp.replace('.parquet', '')
+                timestamps.add(timestamp)
+            except ValueError:
+                continue
+    
+    return list(user_ids), list(timestamps), keys
+
+def extract_key_data(df: pd.DataFrame, key: str) -> Any:
+    """
+    Extract data for a specific key from the DataFrame.
+    Handles nested JSON and dictionary structures.
+    """
+    # Check if key is directly in columns
+    if key in df.columns:
+        return df[key]
+    
+    # Look for the key in JSON-encoded columns
+    for column in df.columns:
+        try:
+            # Get the first row of the column
+            column_data = df[column].iloc[0]
+            
+            # If it's a string, try to parse as JSON
+            if isinstance(column_data, str):
+                try:
+                    column_data = pd.json_normalize(pd.read_json(StringIO(column_data)))
+                    if key in column_data.columns:
+                        return column_data[key]
+                except:
+                    continue
+            
+            # If it's already a dict
+            elif isinstance(column_data, dict):
+                if key in column_data:
+                    return pd.Series([column_data[key]])
+                # Check nested dictionaries
+                for value in column_data.values():
+                    if isinstance(value, dict) and key in value:
+                        return pd.Series([value[key]])
+                        
+        except Exception:
+            continue
+            
+    return pd.Series([f"Key '{key}' not found"])
+
+def retrieve_data(user_ids: List[str], timestamps: List[str], keys: List[str], bucket_name: str = "wl-data") -> List[pd.DataFrame]:
+    """
+    Retrieve data from MinIO and return a list of DataFrames.
+    Each DataFrame contains the data for one user-timestamp combination.
+    """
+    dataframes = []
+
+    for user_id in user_ids:
+        for timestamp in timestamps:
+            try:
+                # Construct object name and retrieve parquet file
+                object_name = f"{user_id}/{timestamp}.parquet"
                 response = minio_client.get_object(bucket_name, object_name)
-                data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
-
-                results = {}
-                for field in fields:
-                    field_found = False
-                    for column in data.columns:
-                        try:
-                            field_data = data[column].iloc[0]
-                            if isinstance(field_data, str):
-                                field_data = json.loads(field_data)
-
-                            if isinstance(field_data, dict) and field in field_data:
-                                results[field] = field_data[field]
-                                field_found = True
-                                break
-                        except Exception as e:
-                            print(f"Error processing field {field}: {e}")
-
-                    if not field_found:
-                        results[field] = f"No data found for '{field}'"
-
-                all_results[f"{user_id}_{ts}"] = {
-                    "user_id": user_id,
-                    "timestamp": ts,
-                    "data": results if results else "No data found for requested fields",
-                }
+                raw_df = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
+                
+                # Create a new DataFrame with user_id and timestamp
+                result_df = pd.DataFrame({
+                    'user_id': [user_id],
+                    'timestamp': [timestamp]
+                })
+                
+                # Extract data for each requested key
+                for key in keys:
+                    result_df[key] = extract_key_data(raw_df, key)
+                
+                dataframes.append(result_df)
+                
             except Exception as e:
-                print(f"Error retrieving object {object_name}: {e}")
-                all_results[f"{user_id}_{ts}"] = f"Error: Unable to retrieve data for {object_name}"
+                # Create error DataFrame
+                error_df = pd.DataFrame({
+                    'user_id': [user_id],
+                    'timestamp': [timestamp],
+                    'error': [str(e)]
+                })
+                dataframes.append(error_df)
 
-    return all_results if all_results else None
+    return dataframes
 
-
-# Main function to handle query and return results
-def handle_query(query_list):
+def handle_automated_query(input_list: List[Any]) -> List[pd.DataFrame]:
     """
-    Main handler for the query. Parses the query and retrieves the requested data.
-    """
-    requests, fields_to_retrieve = parse_query_list(query_list)
-    if requests and fields_to_retrieve:
-        results = retrieve_data(requests, fields_to_retrieve)
-        return results
-    else:
-        print("Invalid query format or missing data in the query list.")
-        return None
-
-
-# Test cases
-def run_tests():
-    """
-    Run a series of test cases to validate the functionality.
-    """
-    test_cases = [
-        {"description": "Query without timestamp (retrieve all timestamps)", "query_list": ["02:00:00:00:00:00", "GPS"]},
-        {"description": "Multiple keys in query", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:22", "GPS", "rssi"]},
-        {"description": "Only keys provided (no timestamps)", "query_list": ["02:00:00:00:00:00", "GPS", "rssi"]},
-        {"description": "Invalid timestamp format", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16", "GPS"]},
-        {"description": "Non-existent timestamp", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:59", "GPS"]},
-        {"description": "Empty query list", "query_list": []},
-        {"description": "No field provided, only timestamps", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:22"]},
+    Handle automated query processing from the input list format.
+    Returns a list of DataFrames containing the results.
+    
+    Example input format:
+    [
+        ["02:00:00:00:00:00/2024-10-22 18:16:22.530491.parquet", 
+         "02:00:00:00:00:00/2024-10-22 18:16:23.000001.parquet"],
+        ["03:00:00:00:00:00/2024-10-22 18:16:22.530491.parquet"],
+        "GPS",
+        "rssi"
     ]
-
-    for i, test_case in enumerate(test_cases, 1):
-        print(f"\nRunning Test Case {i}: {test_case['description']}")
-        result = handle_query(test_case["query_list"])
-        print("Query Result:", json.dumps(result, indent=4))
-
+    """
+    try:
+        user_ids, timestamps, keys = parse_automated_input(input_list)
+        return retrieve_data(user_ids, timestamps, keys)
+    except Exception as e:
+        # Return a single DataFrame with the error
+        return [pd.DataFrame({'error': [str(e)]})]
 
 if __name__ == "__main__":
-    print("1. Run Example Query")
-    print("2. Run All Tests")
-    choice = input("Enter your choice: ")
-
-    if choice == "1":
-        query_list = ["02:00:00:00:00:00", "2024-10-22 18:16:22.530491", "GPS", "rssi"]
-        result = handle_query(query_list)
-        print("Example Query Result:", json.dumps(result, indent=4))
-    elif choice == "2":
-        run_tests()
-    else:
-        print("Invalid choice. Exiting.")
+    # Example usage with automated input
+    example_input = [
+        ["02:00:00:00:00:00/2024-10-22 18:16:22.530491.parquet"],
+        ["03:00:00:00:00:00/2024-10-22 18:16:22.530491.parquet"],
+        "GPS",
+        "rssi"
+    ]
+    
+    try:
+        # Get list of DataFrames
+        result_dfs = handle_automated_query(example_input)
+        
+        # Display each DataFrame
+        for i, df in enumerate(result_dfs):
+            print(f"\nDataFrame {i + 1}:")
+            print(df)
+            
+    except Exception as e:
+        print(f"Error processing query: {e}")

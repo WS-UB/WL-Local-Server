@@ -5,7 +5,7 @@ import paho.mqtt.client as mqtt
 from io import BytesIO
 from minio import Minio
 from datetime import datetime
-from key_specific_data_retrieval import handle_query
+from key_specific_data_retrieval import handle_automated_query
 
 # Configure MinIO Client
 minio_client = Minio(
@@ -118,8 +118,14 @@ def main():
 
     # * Obtain the list of dataframes for the specified hour and minute range
     file_names_list = retrieve_hour_range_data("wl-data", user_id, keys, 18, 18, 0, 30)
-    print(file_names_list)
-    # add_new_data(key, value, data_list)
+    # print(file_names_list)
+
+    # * Retrieve the list of dataframes based on the provided file names
+    data_list = handle_automated_query(file_names_list)
+
+    add_new_data(key, value, data_list)
+
+    print(data_list[0]["GPS"])
 
 if __name__ == "__main__":
     main()
