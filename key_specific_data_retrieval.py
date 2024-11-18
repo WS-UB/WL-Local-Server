@@ -1,7 +1,7 @@
-import json
 import pandas as pd
 from io import BytesIO
 from minio import Minio
+from typing import List, Dict, Any
 
 # MinIO Client Configuration
 minio_client = Minio(
@@ -11,169 +11,154 @@ minio_client = Minio(
     secure=False             # Set to True if using HTTPS
 )
 
-def convert_to_serializable(obj):
+def parse_automated_input(input_list):
     """
-    Convert numpy arrays and other non-serializable objects to JSON serializable format.
+    Parse the automated input list format where:
+    - Each element except last two are lists of parquet files for respective user IDs
+    - Last two elements are keys
+    Returns: user_ids, timestamps, and keys
     """
-    import numpy as np
+    if len(input_list) < 3:  # Need at least one user data list and two keys
+        raise ValueError("Input list must contain at least one user data list and two keys")
     
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, dict):
-        return {k: convert_to_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_to_serializable(item) for item in list]
-    return obj
-
-def parse_query_list(query_list):
-    """
-    Parse the query list into user_ids, timestamps, and keys.
-    Handles:
-    - Combined user_id/timestamp entries (e.g., "02:00:00:00:00:00/2024-10-22 18:16:22.530491")
-    - Multiple comma-separated entries
-    - Keys without timestamps
-    """
+    # Extract keys (last two elements)
+    keys = input_list[-2:]
+    
+    # Process user data lists (all elements except last two)
+    user_data = input_list[:-2]
+    
     user_ids = set()
     timestamps = set()
-    keys = []
     
-    for item in query_list:
-        # Check if the item contains a MAC address pattern
-        if ":" in item and "/" in item:
-            # Split combined entries (potentially comma-separated)
-            entries = item.split(",")
-            
-            for entry in entries:
-                entry = entry.strip()
-                # Remove any asterisks from the entry
-                entry = entry.replace("*", "")
-                
-                if "/" in entry:
-                    user_id, timestamp = entry.split("/", 1)
-                    user_ids.add(user_id.strip())
-                    timestamps.add(timestamp.strip())
-        # If it's a MAC address alone
-        elif ":" in item and item.count(":") == 5:
-            user_ids.add(item.strip())
-        # If it doesn't match user_id patterns, treat it as a key
-        else:
-            keys.append(item.strip())
+    # Process each user's parquet file list
+    for parquet_list in user_data:
+        for parquet_file in parquet_list:
+            # Extract user_id and timestamp from parquet filename
+            try:
+                user_id, timestamp = parquet_file.split('/')
+                user_ids.add(user_id)
+                # Remove .parquet extension if present
+                timestamp = timestamp.replace('.parquet', '')
+                timestamps.add(timestamp)
+            except ValueError:
+                continue
     
-    user_ids = list(user_ids)
-    timestamps = list(timestamps)
-    
-    if not user_ids:
-        raise ValueError("No valid user_id found in the query list.")
-    if not keys:
-        raise ValueError("No keys specified for data retrieval.")
-    
-    return user_ids, timestamps, keys
+    return list(user_ids), list(timestamps), keys
 
-def retrieve_data(user_ids, timestamps, keys, bucket_name="wl-data"):
+def extract_key_data(df: pd.DataFrame, key: str) -> Any:
     """
-    Retrieve data from MinIO based on user_ids, timestamps, and keys.
+    Extract data for a specific key from the DataFrame.
+    Handles nested JSON and dictionary structures.
     """
-    results = {}
+    # Check if key is directly in columns
+    if key in df.columns:
+        return df[key]
+    
+    # Look for the key in JSON-encoded columns
+    for column in df.columns:
+        try:
+            # Get the first row of the column
+            column_data = df[column].iloc[0]
+            
+            # If it's a string, try to parse as JSON
+            if isinstance(column_data, str):
+                try:
+                    column_data = pd.json_normalize(pd.read_json(f"[{column_data}]"))
+                    if key in column_data.columns:
+                        return column_data[key]
+                except:
+                    continue
+            
+            # If it's already a dict
+            elif isinstance(column_data, dict):
+                if key in column_data:
+                    return pd.Series([column_data[key]])
+                # Check nested dictionaries
+                for value in column_data.values():
+                    if isinstance(value, dict) and key in value:
+                        return pd.Series([value[key]])
+                        
+        except Exception:
+            continue
+            
+    return pd.Series([f"Key '{key}' not found"])
+
+def retrieve_data(user_ids: List[str], timestamps: List[str], keys: List[str], bucket_name: str = "wl-data") -> List[pd.DataFrame]:
+    """
+    Retrieve data from MinIO and return a list of DataFrames.
+    Each DataFrame contains the data for one user-timestamp combination.
+    """
+    dataframes = []
 
     for user_id in user_ids:
         for timestamp in timestamps:
-            object_name = f"{user_id}/{timestamp}.parquet"
             try:
+                # Construct object name and retrieve parquet file
+                object_name = f"{user_id}/{timestamp}.parquet"
                 response = minio_client.get_object(bucket_name, object_name)
-                data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
+                raw_df = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
                 
-                key_data = {}
+                # Create a new DataFrame with user_id and timestamp
+                result_df = pd.DataFrame({
+                    'user_id': [user_id],
+                    'timestamp': [timestamp]
+                })
                 
-                # Process each requested key
+                # Extract data for each requested key
                 for key in keys:
-                    key_found = False
-                    
-                    # Check each column in the dataframe
-                    for column in data.columns:
-                        try:
-                            column_data = data[column].iloc[0]
-                            
-                            # Convert string to dict if it's JSON
-                            if isinstance(column_data, str):
-                                try:
-                                    column_data = json.loads(column_data)
-                                except json.JSONDecodeError:
-                                    continue
-                                
-                            # If column_data is a dict, search for the key
-                            if isinstance(column_data, dict):
-                                # Case 1: The key is the column name itself
-                                if column == key:
-                                    key_data[key] = convert_to_serializable(column_data)
-                                    key_found = True
-                                    break
-                                    
-                                # Case 2: The key is inside the column's dict
-                                elif key in column_data:
-                                    key_data[key] = convert_to_serializable(column_data[key])
-                                    key_found = True
-                                    break
-                                    
-                                # Case 3: Search for nested keys in all dictionary values
-                                else:
-                                    for value in column_data.values():
-                                        if isinstance(value, dict) and key in value:
-                                            key_data[key] = convert_to_serializable(value[key])
-                                            key_found = True
-                                            break
-                                    if key_found:
-                                        break
-                            
-                            # If the column itself matches the key
-                            elif column == key:
-                                key_data[key] = convert_to_serializable(column_data)
-                                key_found = True
-                                break
-                                
-                        except Exception as e:
-                            continue
-                    
-                    if not key_found:
-                        key_data[key] = f"Key '{key}' not found in data"
-
-                results[f"{user_id}_{timestamp}"] = {
-                    "user_id": user_id,
-                    "timestamp": timestamp,
-                    "data": key_data
-                }
-
+                    result_df[key] = extract_key_data(raw_df, key)
+                
+                dataframes.append(result_df)
+                
             except Exception as e:
-                results[f"{user_id}_{timestamp}"] = {"error": f"Unable to retrieve data: {e}"}
+                # Create error DataFrame
+                error_df = pd.DataFrame({
+                    'user_id': [user_id],
+                    'timestamp': [timestamp],
+                    'error': [str(e)]
+                })
+                dataframes.append(error_df)
 
-    return results
+    return dataframes
 
-def handle_query(query_string):
+def handle_automated_query(input_list: List[Any]) -> List[pd.DataFrame]:
     """
-    Main handler for the query. Takes a query string and processes it.
-    Example query format:
-    "02:00:00:00:00:00/2024-10-22 18:16:22.530491,02:00:00:00:00:00/2024-10-22 18:16:23.000001,GPS"
+    Handle automated query processing from the input list format.
+    Returns a list of DataFrames containing the results.
+    
+    Example input format:
+    [
+        ["02:00:00:00:00:00/2024-10-22 18:16:22.530491.parquet", 
+         "02:00:00:00:00:00/2024-10-22 18:16:23.000001.parquet"],
+        ["03:00:00:00:00:00/2024-10-22 18:16:22.530491.parquet"],
+        "GPS",
+        "rssi"
+    ]
     """
     try:
-        # Split the query string into a list
-        query_list = query_string.split(",")
-        user_ids, timestamps, keys = parse_query_list(query_list)
+        user_ids, timestamps, keys = parse_automated_input(input_list)
         return retrieve_data(user_ids, timestamps, keys)
     except Exception as e:
-        return {"error": str(e)}
+        # Return a single DataFrame with the error
+        return [pd.DataFrame({'error': [str(e)]})]
 
 if __name__ == "__main__":
-    while True:
-        try:
-            # Get query input from user
-            query_string = input("Enter query (or 'quit' to exit): ")
+    # Example usage with automated input
+    example_input = [
+        ["02:00:00:00:00:00/2024-10-22 18:16:22.530491.parquet"],
+        ["03:00:00:00:00:00/2024-10-22 18:16:22.530491.parquet"],
+        "GPS",
+        "rssi"
+    ]
+    
+    try:
+        # Get list of DataFrames
+        result_dfs = handle_automated_query(example_input)
+        
+        # Display each DataFrame
+        for i, df in enumerate(result_dfs):
+            print(f"\nDataFrame {i + 1}:")
+            print(df)
             
-            # Check for exit condition
-            if query_string.lower() == 'quit':
-                break
-                
-            # Process query and print results
-            result = handle_query(query_string)
-            print(json.dumps(result, indent=4))
-            
-        except Exception as e:
-            print(f"Error processing query: {e}")
+    except Exception as e:
+        print(f"Error processing query: {e}")
