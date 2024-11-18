@@ -11,147 +11,169 @@ minio_client = Minio(
     secure=False             # Set to True if using HTTPS
 )
 
-# Function to parse the list of strings into the expected format
+def convert_to_serializable(obj):
+    """
+    Convert numpy arrays and other non-serializable objects to JSON serializable format.
+    """
+    import numpy as np
+    
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_serializable(item) for item in list]
+    return obj
+
 def parse_query_list(query_list):
     """
-    Parses the query list into requests (user_id, timestamps) and fields.
+    Parse the query list into user_ids, timestamps, and keys.
+    Handles:
+    - Combined user_id/timestamp entries (e.g., "02:00:00:00:00:00/2024-10-22 18:16:22.530491")
+    - Multiple comma-separated entries
+    - Keys without timestamps
     """
-    try:
-        user_ids = list({item for item in query_list if ":" in item})  # User IDs typically contain colons
-        timestamps = [item for item in query_list if " " in item]  # Identify timestamps based on space
-        fields = query_list[len(user_ids) + len(timestamps):]  # Remaining items are fields
-
-        if not user_ids:
-            raise ValueError("No user_id provided in the query.")
-
-        # Generate requests for all combinations of user_ids and timestamps
-        requests = []
-        for user_id in user_ids:
-            if timestamps:
-                requests.extend([{"user_id": user_id, "timestamp": ts} for ts in timestamps])
-            else:
-                requests.append({"user_id": user_id})  # Retrieve all timestamps for this user_id if none provided
-
-        return requests, fields
-    except Exception as e:
-        print(f"Error parsing query list: {str(e)}")
-        return None, None
-
-
-# Function to list all objects in MinIO for a given user_id
-def list_user_objects(user_id, bucket_name="wl-data"):
-    """
-    List all objects for a given user_id in the specified bucket.
-    """
-    try:
-        objects = minio_client.list_objects(bucket_name, prefix=f"{user_id}/", recursive=True)
-        return [obj.object_name.split("/")[-1].replace(".parquet", "") for obj in objects]
-    except Exception as e:
-        print(f"Error listing objects for user_id {user_id}: {e}")
-        return []
-
-
-# Function to retrieve data for multiple user_id and timestamp pairs with specific fields
-def retrieve_data(requests, fields=None, bucket_name="wl-data"):
-    """
-    Retrieve data from MinIO based on user_id, timestamp, and fields.
-    """
-    all_results = {}
-
-    for request in requests:
-        user_id = request.get("user_id")
-        timestamp = request.get("timestamp")
-
-        if not timestamp:
-            timestamps = list_user_objects(user_id, bucket_name)
-            if not timestamps:
-                all_results[user_id] = {"error": "No data available for this user_id"}
-                continue
+    user_ids = set()
+    timestamps = set()
+    keys = []
+    
+    for item in query_list:
+        # Check if the item contains a MAC address pattern
+        if ":" in item and "/" in item:
+            # Split combined entries (potentially comma-separated)
+            entries = item.split(",")
+            
+            for entry in entries:
+                entry = entry.strip()
+                # Remove any asterisks from the entry
+                entry = entry.replace("*", "")
+                
+                if "/" in entry:
+                    user_id, timestamp = entry.split("/", 1)
+                    user_ids.add(user_id.strip())
+                    timestamps.add(timestamp.strip())
+        # If it's a MAC address alone
+        elif ":" in item and item.count(":") == 5:
+            user_ids.add(item.strip())
+        # If it doesn't match user_id patterns, treat it as a key
         else:
-            timestamps = [timestamp]
+            keys.append(item.strip())
+    
+    user_ids = list(user_ids)
+    timestamps = list(timestamps)
+    
+    if not user_ids:
+        raise ValueError("No valid user_id found in the query list.")
+    if not keys:
+        raise ValueError("No keys specified for data retrieval.")
+    
+    return user_ids, timestamps, keys
 
-        for ts in timestamps:
-            object_name = f"{user_id}/{ts}.parquet"
+def retrieve_data(user_ids, timestamps, keys, bucket_name="wl-data"):
+    """
+    Retrieve data from MinIO based on user_ids, timestamps, and keys.
+    """
+    results = {}
+
+    for user_id in user_ids:
+        for timestamp in timestamps:
+            object_name = f"{user_id}/{timestamp}.parquet"
             try:
                 response = minio_client.get_object(bucket_name, object_name)
                 data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
-
-                results = {}
-                for field in fields:
-                    field_found = False
+                
+                key_data = {}
+                
+                # Process each requested key
+                for key in keys:
+                    key_found = False
+                    
+                    # Check each column in the dataframe
                     for column in data.columns:
                         try:
-                            field_data = data[column].iloc[0]
-                            if isinstance(field_data, str):
-                                field_data = json.loads(field_data)
-
-                            if isinstance(field_data, dict) and field in field_data:
-                                results[field] = field_data[field]
-                                field_found = True
+                            column_data = data[column].iloc[0]
+                            
+                            # Convert string to dict if it's JSON
+                            if isinstance(column_data, str):
+                                try:
+                                    column_data = json.loads(column_data)
+                                except json.JSONDecodeError:
+                                    continue
+                                
+                            # If column_data is a dict, search for the key
+                            if isinstance(column_data, dict):
+                                # Case 1: The key is the column name itself
+                                if column == key:
+                                    key_data[key] = convert_to_serializable(column_data)
+                                    key_found = True
+                                    break
+                                    
+                                # Case 2: The key is inside the column's dict
+                                elif key in column_data:
+                                    key_data[key] = convert_to_serializable(column_data[key])
+                                    key_found = True
+                                    break
+                                    
+                                # Case 3: Search for nested keys in all dictionary values
+                                else:
+                                    for value in column_data.values():
+                                        if isinstance(value, dict) and key in value:
+                                            key_data[key] = convert_to_serializable(value[key])
+                                            key_found = True
+                                            break
+                                    if key_found:
+                                        break
+                            
+                            # If the column itself matches the key
+                            elif column == key:
+                                key_data[key] = convert_to_serializable(column_data)
+                                key_found = True
                                 break
+                                
                         except Exception as e:
-                            print(f"Error processing field {field}: {e}")
+                            continue
+                    
+                    if not key_found:
+                        key_data[key] = f"Key '{key}' not found in data"
 
-                    if not field_found:
-                        results[field] = f"No data found for '{field}'"
-
-                all_results[f"{user_id}_{ts}"] = {
+                results[f"{user_id}_{timestamp}"] = {
                     "user_id": user_id,
-                    "timestamp": ts,
-                    "data": results if results else "No data found for requested fields",
+                    "timestamp": timestamp,
+                    "data": key_data
                 }
+
             except Exception as e:
-                print(f"Error retrieving object {object_name}: {e}")
-                all_results[f"{user_id}_{ts}"] = f"Error: Unable to retrieve data for {object_name}"
+                results[f"{user_id}_{timestamp}"] = {"error": f"Unable to retrieve data: {e}"}
 
-    return all_results if all_results else None
+    return results
 
-
-# Main function to handle query and return results
-def handle_query(query_list):
+def handle_query(query_string):
     """
-    Main handler for the query. Parses the query and retrieves the requested data.
+    Main handler for the query. Takes a query string and processes it.
+    Example query format:
+    "02:00:00:00:00:00/2024-10-22 18:16:22.530491,02:00:00:00:00:00/2024-10-22 18:16:23.000001,GPS"
     """
-    requests, fields_to_retrieve = parse_query_list(query_list)
-    if requests and fields_to_retrieve:
-        results = retrieve_data(requests, fields_to_retrieve)
-        return results
-    else:
-        print("Invalid query format or missing data in the query list.")
-        return None
-
-
-# Test cases
-def run_tests():
-    """
-    Run a series of test cases to validate the functionality.
-    """
-    test_cases = [
-        {"description": "Query without timestamp (retrieve all timestamps)", "query_list": ["02:00:00:00:00:00", "GPS"]},
-        {"description": "Multiple keys in query", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:22", "GPS", "rssi"]},
-        {"description": "Only keys provided (no timestamps)", "query_list": ["02:00:00:00:00:00", "GPS", "rssi"]},
-        {"description": "Invalid timestamp format", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16", "GPS"]},
-        {"description": "Non-existent timestamp", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:59", "GPS"]},
-        {"description": "Empty query list", "query_list": []},
-        {"description": "No field provided, only timestamps", "query_list": ["02:00:00:00:00:00", "2024-10-22 18:16:22"]},
-    ]
-
-    for i, test_case in enumerate(test_cases, 1):
-        print(f"\nRunning Test Case {i}: {test_case['description']}")
-        result = handle_query(test_case["query_list"])
-        print("Query Result:", json.dumps(result, indent=4))
-
+    try:
+        # Split the query string into a list
+        query_list = query_string.split(",")
+        user_ids, timestamps, keys = parse_query_list(query_list)
+        return retrieve_data(user_ids, timestamps, keys)
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
-    print("1. Run Example Query")
-    print("2. Run All Tests")
-    choice = input("Enter your choice: ")
-
-    if choice == "1":
-        query_list = ["02:00:00:00:00:00", "2024-10-22 18:16:22.530491", "GPS", "rssi"]
-        result = handle_query(query_list)
-        print("Example Query Result:", json.dumps(result, indent=4))
-    elif choice == "2":
-        run_tests()
-    else:
-        print("Invalid choice. Exiting.")
+    while True:
+        try:
+            # Get query input from user
+            query_string = input("Enter query (or 'quit' to exit): ")
+            
+            # Check for exit condition
+            if query_string.lower() == 'quit':
+                break
+                
+            # Process query and print results
+            result = handle_query(query_string)
+            print(json.dumps(result, indent=4))
+            
+        except Exception as e:
+            print(f"Error processing query: {e}")
