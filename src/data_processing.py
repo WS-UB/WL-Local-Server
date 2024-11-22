@@ -5,6 +5,7 @@ import paho.mqtt.client as mqtt
 from io import BytesIO
 from minio import Minio
 from datetime import datetime
+from minio_script import store_received_data
 from key_specific_data_retrieval import handle_automated_query
 
 # Configure MinIO Client
@@ -35,14 +36,13 @@ def add_new_data(key, value, data_list):
         for data in data_list:
             # Add a new column to the DataFrame
             data[key] = [value] * len(data)
-        print(data_list)
         return data_list
                 
     except Exception as e:
         print(f"Error adding new data: {str(e)}")
         return None
 
-# * Feature 2: Retrieve the name of parquet files from MinIO based on the given range of hour and minute.
+# * Feature 2: Retrieve a list of names of parquet files from MinIO based on the given range of hour and minute.
 """
 @params: bucket_name: The name of the bucket in MinIO
 @params: user_id: The list of user_id that we want to retrieve the data from
@@ -108,6 +108,26 @@ def retrieve_hour_range_data(bucket_name, user_id, keys, start_hour, end_hour, s
         print("Invalid hour range. Please enter a valid hour range.")
         return []
 
+# * Feature 3: Delete a column of data from a given list of dataframe
+"""
+@params: data_list: The list of dataframes that we want to focus on deleting
+@params: key: The name of the column that we want to delete
+
+@return: None
+"""
+def delete_data(key, data_list):
+    try:
+        # Iterate through each DataFrame in the list
+        for data in data_list:
+            if key in data.columns:
+                # Delete the column if it exists
+                data.drop(columns=key, inplace=True)
+                
+    except Exception as e:
+        print(f"Error deleting column '{key}': {str(e)}")
+        return None
+
+        
 # * ---------------------------------------------------------------------------------------------- MAIN FUNCTION RUNS HERE -----------------------------------------------------------------------------------------------
 
 def main():
@@ -117,15 +137,41 @@ def main():
     keys = ["GPS", "rssi"]
 
     # * Obtain the list of dataframes for the specified hour and minute range
-    file_names_list = retrieve_hour_range_data("wl-data", user_id, keys, 18, 18, 0, 30)
+    file_names_list = retrieve_hour_range_data("wl-data", user_id, keys, 14, 14, 47, 47)
     # print(file_names_list)
 
     # * Retrieve the list of dataframes based on the provided file names
     data_list = handle_automated_query(file_names_list)
+    print("------------------------------------Before adding new data------------------------------------")
+    print(data_list)
 
-    add_new_data(key, value, data_list)
+    # * Add the new data to the list of dataframes
+    new_data_list = add_new_data(key, value, data_list)
+    print("------------------------------------After adding new data------------------------------------")
+    print(new_data_list)
 
-    print(data_list[0]["GPS"])
+    # # * Delete the data from the list of dataframes
+    # delete_data(key, data_list)
+    # print("------------------------------------After deleting data------------------------------------")
+    # print(data_list)
+
+    # * Since the only way we can update the files in MinIO is to upload the modified parquet files, we can use the store_received_data function from MinIO script to store the new data in MinIO
+    for data in new_data_list:
+        # Transform the data into JSON since the parameter of store_received_data needs a JSON file
+        json_data = data.to_json(orient="records")
+        # We call the store_received_data function to store the new data in MinIO
+        store_received_data(json_data)
+
+    new_list = handle_automated_query(file_names_list)
+    print(new_list)
+
+    # * Print the rssi data from the new list of dataframes to see if it has been updated or not
+    for i in range(len(new_list)):
+        print(list(new_list[i]["GPS"]))
+
+
+
+
 
 if __name__ == "__main__":
     main()
