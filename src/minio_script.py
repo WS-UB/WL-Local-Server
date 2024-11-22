@@ -32,24 +32,45 @@ def store_received_data(received_data, bucket_name="wl-data"):
         user_id = data[0].get("user_id", "unknown_user")
         timestamp = data[0].get("timestamp", datetime.utcnow().isoformat())
 
-        # Handle GPS field: Check if it's already serialized
+        # * We check if the GPS field has been serialized or not so that it won't built a nested serialized JSON string and unable to process data.
         gps_value = data[0].get("GPS", {})
         if isinstance(gps_value, str):
-            # Assume GPS is already serialized correctly
-            serialized_gps = gps_value
+            serialized_gps = gps_value  # Already serialized
         else:
-            # Serialize GPS if it's not already a JSON string
-            serialized_gps = json.dumps(gps_value)
+            serialized_gps = json.dumps(gps_value)  # Serialize if needed
+
+        # * We check if the Wifi field has been serialized or not so that it won't built a nested serialized JSON string and unable to process data.
+        wifi_value = data[0].get("WiFi", {})
+        if isinstance(wifi_value, str):
+            serialized_wifi = wifi_value  # Already serialized
+        else:
+            serialized_wifi = json.dumps(wifi_value)  # Serialize if needed
+
+        # * We check if the Channel field has been serialized or not so that it won't built a nested serialized JSON string and unable to process data.
+        channel_value = data[0].get("Channel", {})
+        if isinstance(channel_value, str):
+            serialized_channel = channel_value  # Already serialized
+        else:
+            serialized_channel = json.dumps(channel_value)  # Serialize if needed
+
+        # Handle rssi field (ensure it's a scalar or None)
+        rssi_value = data[0].get("rssi", None)
+        if isinstance(rssi_value, str):
+            serialized_rssi = rssi_value  # Assume already serialized
+        elif isinstance(rssi_value, (int, float)):
+            serialized_rssi = rssi_value  # Keep as-is for numbers
+        else:
+            serialized_rssi = None  # Default to None if invalid
 
         # Convert the data into a DataFrame
         data_entry = {
             "user_id": [user_id],
             "timestamp": [timestamp],
             "IMU": [json.dumps(data[0].get("IMU", {}))],  # Serialize IMU
-            "GPS": [serialized_gps],  # Use checked/serialized GPS value
-            "WiFi": [json.dumps(data[0].get("WiFi", {}))],
-            "Channel": [json.dumps(data[0].get("Channel", {}))],
-            "rssi": [data[0].get("rssi", None)],  # Keep rssi as a scalar value
+            "GPS": [serialized_gps],
+            "WiFi": [serialized_wifi],
+            "Channel": [serialized_channel],
+            "rssi": [serialized_rssi],
         }
         df = pd.DataFrame(data_entry)
 
