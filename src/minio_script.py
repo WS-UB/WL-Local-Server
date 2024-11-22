@@ -32,14 +32,24 @@ def store_received_data(received_data, bucket_name="wl-data"):
         user_id = data[0].get("user_id", "unknown_user")
         timestamp = data[0].get("timestamp", datetime.utcnow().isoformat())
 
+        # Handle GPS field: Check if it's already serialized
+        gps_value = data[0].get("GPS", {})
+        if isinstance(gps_value, str):
+            # Assume GPS is already serialized correctly
+            serialized_gps = gps_value
+        else:
+            # Serialize GPS if it's not already a JSON string
+            serialized_gps = json.dumps(gps_value)
+
         # Convert the data into a DataFrame
         data_entry = {
             "user_id": [user_id],
             "timestamp": [timestamp],
-            "IMU": [json.dumps(data[0].get("IMU", {}))],
-            "GPS": [json.dumps(data[0].get("GPS", {}))],
+            "IMU": [json.dumps(data[0].get("IMU", {}))],  # Serialize IMU
+            "GPS": [serialized_gps],  # Use checked/serialized GPS value
             "WiFi": [json.dumps(data[0].get("WiFi", {}))],
             "Channel": [json.dumps(data[0].get("Channel", {}))],
+            "rssi": [data[0].get("rssi", None)],  # Keep rssi as a scalar value
         }
         df = pd.DataFrame(data_entry)
 
