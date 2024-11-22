@@ -126,7 +126,6 @@ def delete_data(key, data_list):
     except Exception as e:
         print(f"Error deleting column '{key}': {str(e)}")
         return None
-
         
 # * ---------------------------------------------------------------------------------------------- MAIN FUNCTION RUNS HERE -----------------------------------------------------------------------------------------------
 
@@ -136,29 +135,27 @@ def main():
     user_id = ["02:00:00:00:00:00"]
     keys = ["GPS", "rssi"]
 
-    # * Obtain the list of dataframes for the specified hour and minute range
-    file_names_list = retrieve_hour_range_data("wl-data", user_id, keys, 14, 14, 47, 47)
-    # print(file_names_list)
+    # ! Test 1: Retrieves a set of parquet file names based on the chosen range of hour and minute.
+    # * We call the function because we are testing this feature
+    file_names_list = retrieve_hour_range_data("wl-data", user_id, keys, 18, 18, 40, 44)
+    # print(file_names_list) # * You can uncomment this line to see if it works or not
 
     # * Retrieve the list of dataframes based on the provided file names
     data_list = handle_automated_query(file_names_list)
-    print("------------------------------------Before adding new data------------------------------------")
-    print(data_list)
-
-    # * Add the new data to the list of dataframes
-    new_data_list = add_new_data(key, value, data_list)
-    print("------------------------------------After adding new data------------------------------------")
-    print(new_data_list)
-
-    # # * Delete the data from the list of dataframes
-    # delete_data(key, data_list)
-    # print("------------------------------------After deleting data------------------------------------")
+    # print("------------------------------------Before adding new data------------------------------------")
     # print(data_list)
 
+    # ! Test 2: Implement a feature that inserts a new key-value pair in a set of MinIO data
+    # * Add the new data to the list of dataframes
+    new_data_list = add_new_data(key, value, data_list)
+    # print("------------------------------------After adding new data------------------------------------")
+    # print(new_data_list)
+    
+    # ! Test 3: Implement a feature that uploads modified local data to MinIO
     # * Since the only way we can update the files in MinIO is to upload the modified parquet files, we can use the store_received_data function from MinIO script to store the new data in MinIO
-    for data in new_data_list:
+    for elem in new_data_list:
         # Transform the data into JSON since the parameter of store_received_data needs a JSON file
-        json_data = data.to_json(orient="records")
+        json_data = elem.to_json(orient="records")
         # We call the store_received_data function to store the new data in MinIO
         store_received_data(json_data)
 
@@ -167,7 +164,13 @@ def main():
 
     # * Print the rssi data from the new list of dataframes to see if it has been updated or not
     for i in range(len(new_list)):
-        print(list(new_list[i]["GPS"]))
+        print(list(new_list[i]["ground_truth"]))
+    
+    # # ! Test 4: Implement a feature that can delete keys (columns of data) from a dataframe
+    # # * Delete the data from the list of dataframes
+    # delete_data(key, data_list)
+    # print("------------------------------------After deleting data------------------------------------")
+    # print(data_list)
 
 
 

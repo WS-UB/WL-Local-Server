@@ -32,46 +32,31 @@ def store_received_data(received_data, bucket_name="wl-data"):
         user_id = data[0].get("user_id", "unknown_user")
         timestamp = data[0].get("timestamp", datetime.utcnow().isoformat())
 
-        # * We check if the GPS field has been serialized or not so that it won't built a nested serialized JSON string and unable to process data.
+        # Serialize or handle fields as needed
         gps_value = data[0].get("GPS", {})
-        if isinstance(gps_value, str):
-            serialized_gps = gps_value  # Already serialized
-        else:
-            serialized_gps = json.dumps(gps_value)  # Serialize if needed
-
-        # * We check if the Wifi field has been serialized or not so that it won't built a nested serialized JSON string and unable to process data.
+        serialized_gps = json.dumps(gps_value) if not isinstance(gps_value, str) else gps_value
         wifi_value = data[0].get("WiFi", {})
-        if isinstance(wifi_value, str):
-            serialized_wifi = wifi_value  # Already serialized
-        else:
-            serialized_wifi = json.dumps(wifi_value)  # Serialize if needed
-
-        # * We check if the Channel field has been serialized or not so that it won't built a nested serialized JSON string and unable to process data.
+        serialized_wifi = json.dumps(wifi_value) if not isinstance(wifi_value, str) else wifi_value
         channel_value = data[0].get("Channel", {})
-        if isinstance(channel_value, str):
-            serialized_channel = channel_value  # Already serialized
-        else:
-            serialized_channel = json.dumps(channel_value)  # Serialize if needed
+        serialized_channel = json.dumps(channel_value) if not isinstance(channel_value, str) else channel_value
+        ground_truth_value = data[0].get("ground_truth", {})
+        serialized_ground_truth = json.dumps(ground_truth_value) if not isinstance(ground_truth_value, str) else ground_truth_value
 
-        # Handle rssi field (ensure it's a scalar or None)
         rssi_value = data[0].get("rssi", None)
-        if isinstance(rssi_value, str):
-            serialized_rssi = rssi_value  # Assume already serialized
-        elif isinstance(rssi_value, (int, float)):
-            serialized_rssi = rssi_value  # Keep as-is for numbers
-        else:
-            serialized_rssi = None  # Default to None if invalid
+        serialized_rssi = rssi_value if isinstance(rssi_value, (int, float, str)) else None
 
-        # Convert the data into a DataFrame
+        # Create the DataFrame
         data_entry = {
             "user_id": [user_id],
             "timestamp": [timestamp],
-            "IMU": [json.dumps(data[0].get("IMU", {}))],  # Serialize IMU
+            "IMU": [json.dumps(data[0].get("IMU", {}))],
             "GPS": [serialized_gps],
             "WiFi": [serialized_wifi],
             "Channel": [serialized_channel],
             "rssi": [serialized_rssi],
+            "ground_truth": [serialized_ground_truth],  # Ensure it's added correctly
         }
+
         df = pd.DataFrame(data_entry)
 
         # Save DataFrame as Parquet in memory
@@ -79,10 +64,8 @@ def store_received_data(received_data, bucket_name="wl-data"):
         df.to_parquet(parquet_buffer, engine="pyarrow", index=False)
         parquet_buffer.seek(0)
 
-        # Define the object name using User ID and Timestamp in the format "UserId/Timestamp"
+        # Save to MinIO
         object_name = f"{user_id}/{timestamp}.parquet"
-
-        # Store the data in MinIO
         minio_client.put_object(
             bucket_name,
             object_name,
@@ -90,9 +73,7 @@ def store_received_data(received_data, bucket_name="wl-data"):
             length=parquet_buffer.getbuffer().nbytes,
             content_type="application/x-parquet",
         )
-        print(
-            f"Successfully stored data for {user_id} at {timestamp} in Parquet format."
-        )
+        print(f"Successfully stored data for {user_id} at {timestamp} in Parquet format.")
     except Exception as e:
         print(f"Error storing data in MinIO: {str(e)}")
 
