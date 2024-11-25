@@ -57,17 +57,20 @@ Our current goals for the server-side aspect of this project include:
 
 This project directory consists of four nodes:
 
-- [elastic_read](./src/elastic_read.py): This file allows the user to access the local MinIO database and insert the JSON data from MinIO to the local Elasticsearch database. In addition, this file can interact with the local Elasticsearch database by inserting new data queries from MinIO, removing available datasets from Elasticsearch, and showing available datasets in the local Elasticsearch database.
+- [minio_script](./src/minio_script.py): This file allows the user to parse the received queries from MQTT and retrieve the data from MinIO based on the receving queries. In addition, the file can list all objects in the specified bucket to verify if the data has been stored or not and showing the available dataset in the local MinIO database by using User ID and Timestamp.
 
-- [minio_script](./src/minio_script.py): This file allows the user to parse the received queries from Elasticsearch and store them in MinIO with User ID and Timestamp. In addition, the file can list all objects in the specified bucket to verify if the data has been stored or not and showing the available dataset in the local MinIO database by using User ID and Timestamp.
-
-- [data_processing](./src/data_processing.py): This file will run the program to insert a new column of data into a set of parquet files in MinIO
+- [data_processing](./src/data_processing.py): This file will be the center of data manipulation and data filtering purposes. Later on, the project will be moving onto building AI models that requires filtered and modified datas. This file has implemented the following features:
+        - Filter out a set of data from MinIO based on the given hour range, minute range, and what type of column (the key of the dataframe) does the user wants.
+        - Add a new column of data into a list of given dataframes.
+        - Delete a column of data in the list of given dataframes.
+        - Updates the latest modified data from the local machine to the MinIO database.
   
 The script connects to an existing MinIO server located in the Wiloc SSH, sending accelerometer, gyroscope, GPS, and WiFi data. This data is buffered and synchronized based on timestamps in the imu_gps_publisher.py script. The node also handles errors, and reconnection attempts, and shuts down gracefully when interrupted (Ctrl+C).
 
 - [imu_gps_publisher.py](./src/imu_gps_publisher.py): An MQTT script that connects to the MQTT server that is receiving WiFi data from 4 RPI's as well as receiving GPS and IMU data from an Android Phone running the WLMap application. It establishes an MQTT connection to the Wiloc SSH server (tcp://128.205.218.189:1883) and listens for incoming GPS, IMU, and WiFi data, extracting accelerometer and gyroscope XYZ values, latitude and longitude values, timestamps, and WiFI routing information. These values are then packaged into a MinIO bucket and published to the Wiloc MinIO server. The script also handles connection events, errors, and graceful shutdowns when receiving a termination signal (Ctrl+C).
 
 - [MQTT_Handler.py](./src/MQTT_Handler.py): A basic MQTT Handler class that can subscribe and publish to a server topic. This MQTT Handler class was made as a reference for how an MQTT Handler should be formatted, being used and modified in the imu_gps_publisher.py to receive IMU and GPS data, which is then published to a MinIO server being run on the Wiloc server. The format of this MQTT Handler can be used for future MQTT connections.
+
 - [Subscriber.py](./subscriber.py): A subscriber that creates and MQTT connection with a rasberry pi in order to send wifi data to the Wiloc SSH server (tcp://128.205.218.189:1883) This data is then synchronized and sent to MinIO to be retrieved upon user request. In order to get more information on retrieving and using the wifi data with the RPI please see https://github.com/ucsdwcsng/wiros_csi_node for more information about how to start the wiros node on the Rasberry Pi. 
 
 ### Application Information:
