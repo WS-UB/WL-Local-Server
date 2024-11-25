@@ -14,7 +14,7 @@ TOPIC = "test/topic"
 WIFI = "/csi"
 LIST_OF_TOPICS = [TOPIC, WIFI]
 CLIENT_ID = "retrieve-imu-data"
-MARGIN = 500  # In ms
+MARGIN = 900  # In ms
 
 
 class IMU_GPS_publisher:

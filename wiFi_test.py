@@ -19,9 +19,6 @@ def run():
     while True:
         wifi_Handler.publish(client=client_wifi, msg=wifi_data)
 
-    # df_parquet = pd.read_parquet("output.parquet")
-    # df_parquet.to_csv("output.csv")
-
 
 # Convert the matched strings to lists of integers
 
