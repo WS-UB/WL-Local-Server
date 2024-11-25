@@ -122,7 +122,8 @@ def delete_data(key, data_list):
             if key in data.columns:
                 # Delete the column if it exists
                 data.drop(columns=key, inplace=True)
-                
+            else:
+                raise KeyError(f"Column '{key}' does not exist in the DataFrame.")
     except Exception as e:
         print(f"Error deleting column '{key}': {str(e)}")
         return None
@@ -138,22 +139,23 @@ def main():
     # ! Test 1: Retrieves a set of parquet file names based on the chosen range of hour and minute.
     # * We call the function because we are testing this feature
     file_names_list = retrieve_hour_range_data("wl-data", user_id, keys, 18, 18, 40, 44)
-    # print(file_names_list) # * You can uncomment this line to see if it works or not
+    print(file_names_list) # * You can uncomment this line to see if it works or not  
 
     # * Retrieve the list of dataframes based on the provided file names
     data_list = handle_automated_query(file_names_list)
-    # print("------------------------------------Before adding new data------------------------------------")
-    # print(data_list)
+    print("------------------------------------------------------------------------------------------Before adding new data------------------------------------------------------------------------------------------")
+    print(data_list)
 
     # ! Test 2: Implement a feature that inserts a new key-value pair in a set of MinIO data
     # * Add the new data to the list of dataframes
     new_data_list = add_new_data(key, value, data_list)
-    # print("------------------------------------After adding new data------------------------------------")
-    # print(new_data_list)
+    print("------------------------------------------------------------------------------------------After adding new data------------------------------------------------------------------------------------------")
+    print(new_data_list)
     
     # ! Test 3: Implement a feature that uploads modified local data to MinIO
     # * Since the only way we can update the files in MinIO is to upload the modified parquet files, we can use the store_received_data function from MinIO script to store the new data in MinIO
     for elem in new_data_list:
+        minio_client.remove_object("wl-data", elem["timestamp"][0] + ".parquet")
         # Transform the data into JSON since the parameter of store_received_data needs a JSON file
         json_data = elem.to_json(orient="records")
         # We call the store_received_data function to store the new data in MinIO
@@ -166,14 +168,12 @@ def main():
     for i in range(len(new_list)):
         print(list(new_list[i]["ground_truth"]))
     
-    # # ! Test 4: Implement a feature that can delete keys (columns of data) from a dataframe
-    # # * Delete the data from the list of dataframes
-    # delete_data(key, data_list)
-    # print("------------------------------------After deleting data------------------------------------")
-    # print(data_list)
-
-
-
+    # ! Test 4: Implement a feature that can delete keys (columns of data) from a dataframe
+    # * Delete the data from the list of dataframes
+    # The data we are deleting here is the ground_truth data itself because we need to preserve the original data.
+    delete_data(key, data_list)
+    print("------------------------------------------------------------------------------------------After deleting data------------------------------------------------------------------------------------------")
+    print(data_list)
 
 
 if __name__ == "__main__":
