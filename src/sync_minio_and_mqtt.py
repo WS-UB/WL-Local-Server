@@ -68,7 +68,7 @@ def on_message(client, userdata, message):
         if user_id and timestamp:
             # Retrieve data from MinIO
             # retrieved_data = read_parquet_data(user_id, timestamp) # ! Uncomment this line to use real time user_id and timestamp from MQTT 
-            retrieved_data = read_parquet_data("02:00:00:00:00:00", "2024-10-22 18:16:22.530491") # ! For demostration purposes, we are using hardcoded values.
+            retrieved_data = read_parquet_data("02:00:00:00:00:00", "2024-10-22 18:44:01.630797") # ! For demostration purposes, we are using hardcoded values.
 
             if retrieved_data is not None:
                 # Send the retrieved data back to MQTT
@@ -93,7 +93,10 @@ def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_OUTPU
                     gps_info = json.loads(gps_info)  # Load the GPS data as a dictionary
 
                 if isinstance(gps_info, dict) and "latitude" in gps_info and "longitude" in gps_info:
-                    gps_coordinates_pairs.append((gps_info["latitude"], gps_info["longitude"]))
+                    # ! Uncomment the line below to use the GPS data ffom the MinIO file
+                    # gps_coordinates_pairs.append((gps_info["latitude"], gps_info["longitude"]))
+                    # * We use this line of code below to make the blue dot visible on the map for the demo. 
+                    gps_coordinates_pairs.append((43.0026, -78.7876))
             except json.JSONDecodeError:
                 print("Error decoding JSON in GPS column for entry:", entry)
             except Exception as e:
