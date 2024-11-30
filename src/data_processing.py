@@ -2,6 +2,7 @@ import json
 import urllib3
 import pandas as pd
 import paho.mqtt.client as mqtt
+import time
 from io import BytesIO
 from minio import Minio
 from datetime import datetime
@@ -139,7 +140,10 @@ def main():
     # ! Test 1: Retrieves a set of parquet file names based on the chosen range of hour and minute.
     # * We call the function because we are testing this feature
     file_names_list = retrieve_hour_range_data("wl-data", user_id, keys, 18, 18, 40, 44)
+    print("\n----------------------------------------------------------------------------------------- Retrieve information ----------------------------------------------------------------------------------------")
+    print("Retriving information from MinIO...")
     print(file_names_list) # * You can uncomment this line to see if it works or not  
+    
 
     # * Retrieve the list of dataframes based on the provided file names
     data_list = handle_automated_query(file_names_list)
@@ -154,25 +158,33 @@ def main():
     
     # ! Test 3: Implement a feature that uploads modified local data to MinIO
     # * Since the only way we can update the files in MinIO is to upload the modified parquet files, we can use the store_received_data function from MinIO script to store the new data in MinIO
+    print("\n------------------------------------------------------------------------------------------Updating data in MinIO------------------------------------------------------------------------------------------")
+    print("\nBeginning updating process...")
+    # Delay the process for 1 seconds to simulate the process of updating the data
+    time.sleep(1)
     for elem in new_data_list:
         minio_client.remove_object("wl-data", elem["timestamp"][0] + ".parquet")
         # Transform the data into JSON since the parameter of store_received_data needs a JSON file
         json_data = elem.to_json(orient="records")
         # We call the store_received_data function to store the new data in MinIO
         store_received_data(json_data)
+    time.sleep(2)
+    print("All data uploaded successfully!")
+    # Delay the process for 1 seconds to simulate the process of updating the data
 
-    new_list = handle_automated_query(file_names_list)
-    print(new_list)
 
-    # * Print the rssi data from the new list of dataframes to see if it has been updated or not
-    for i in range(len(new_list)):
-        print(list(new_list[i]["ground_truth"]))
+    # new_list = handle_automated_query(file_names_list)
+    # print(new_list)
+
+    # # * Print the rssi data from the new list of dataframes to see if it has been updated or not
+    # for i in range(len(new_list)):
+    #     print(list(new_list[i]["ground_truth"]))
     
     # ! Test 4: Implement a feature that can delete keys (columns of data) from a dataframe
     # * Delete the data from the list of dataframes
     # The data we are deleting here is the ground_truth data itself because we need to preserve the original data.
     delete_data(key, data_list)
-    print("------------------------------------------------------------------------------------------After deleting data------------------------------------------------------------------------------------------")
+    print("\n------------------------------------------------------------------------------------------After deleting data------------------------------------------------------------------------------------------")
     print(data_list)
 
 
