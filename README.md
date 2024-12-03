@@ -55,9 +55,9 @@ Our current goals for the server-side aspect of this project include:
 
 ### Usage:
 
-This project directory consists of four nodes:
+This project directory consists of five nodes:
 
-- [minio_script](./src/minio_script.py): This file allows the user to parse the received queries from MQTT and retrieve the data from MinIO based on the receving queries. In addition, the file can list all objects in the specified bucket to verify if the data has been stored or not and showing the available dataset in the local MinIO database by using User ID and Timestamp.
+- [minio_script](./src/minio_script.py):  This file allows the user to parse the received queries from MQTT and store them in MinIO in the format of parquet files. More specifically, the file will parse the information from MQTT, turn it into a parquet file, and use the receiving User ID and Timestamp from MQTT as the name of the file. In addition, the file can list all parquet files in the specified bucket to verify if the data has been stored or not and show the available dataset in the local MinIO database by using the User ID and Timestamp.
 
 - [data_processing](./src/data_processing.py): This file will be the center of data manipulation and data filtering purposes. Later on, the project will be moving onto building AI models that requires filtered and modified datas. This file has implemented the following features:
         - Filter out a set of data from MinIO based on the given hour range, minute range, and what type of column (the key of the dataframe) does the user wants.
@@ -129,28 +129,26 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
         python3 WiFi_test.py
 ```
 
-- To install the Elastic search package, clone this repository into a directory of your choosing and install the following Debian packages from your command line:
 
+### 5: Run the MQTT Broker
+
+- To show the message that is sent from the phone application to the back-end server, SSH into the WILOC server and then run the following commands:
 ```
-    wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.15.2-amd64.deb
-    wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.15.2-amd64.deb.sha512
-    shasum -a 512 -c elasticsearch-8.15.2-amd64.deb.sha512
-    sudo dpkg -i elasticsearch-8.15.2-amd64.deb
+        cd imu_publisher/
+        mosquitto_sub -h 128.205.218.189 -t 'test/topic'
 ```
 
-- Next, you run Elasticsearch by using the following command lines:
+- To show the data that is sent back to the phone application via MQTT broker, SSH into the WILOC server and then run the following commands:
+```
+        cd imu_publisher/
+        mosquitto_sub -h 128.205.218.189 -t 'coordinate/topic'
+```
 
-```
-    sudo /bin/systemctl daemon-reload
-    sudo /bin/systemctl enable elasticsearch.service
-    sudo systemctl start elasticsearch.service
-```
+
 
 ## Project Roadmap
 
 ### Server-side Data Management
-
-Elasticsearch Application: https://github.com/elastic/elasticsearch
 
 - [x] IMU data is received from the Android Phone via an MQTT Handler.
 - [x] GPS data is received from the Android Phone via an MQTT Handler.
@@ -158,3 +156,6 @@ Elasticsearch Application: https://github.com/elastic/elasticsearch
 - [x] Synchronized data can be sent to a MinIO server.
 - [x] WiFi data is received from the RPI via an MQTT Handler.
 - [x] WiFi data is synchronized with IMU and GPS data within 500ms of each other.
+- [x] Parse the message that is sent to the MQTT broker.
+- [x] Retrieve and read the parquet file based on the User ID and Timestamp that is sent from the MQTT broker.
+- [x] Get the GPS Coordinates from the read parquet file and send it back to the MQTT broker.
