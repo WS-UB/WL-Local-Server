@@ -32,21 +32,29 @@ Use Case: Enhancing indoor navigation features through efficient key-value data 
 ## Goals and Challenges
 
 ### Goals:
-  -Enable efficient key-value data retrieval from Parquet files stored in MinIO.
-  -Integrate with AI models for enhanced indoor navigation accuracy.
-  -Support real-time, user-specific data queries for large datasets.
+  - Enable efficient key-value data retrieval from Parquet files stored in MinIO.
+
+  - Integrate with AI models for enhanced indoor navigation accuracy.
+    
+  - Support real-time, user-specific data queries for large datasets.
 ### Challenges:
-  -Handling large-scale datasets without compromising speed.
-  -Ensuring data integrity and consistency, especially with nested or missing values.
-  -Maintaining seamless integration with the existing indoor navigation framework.
-  -Technology and Development Plans
+  - Handling large-scale datasets without compromising speed.
+    
+  - Ensuring data integrity and consistency, especially with nested or missing values.
+    
+  - Maintaining seamless integration with the existing indoor navigation framework.
+    
+  - Technology and Development Plans
 
 ## Technologies:
 
-  -Kotlin: For Android application development and integration.
-  -MinIO: For storing Parquet files.
-  -Python: For back-end server processing and AI model integration.
-  -PySpark & Pandas: For efficient data manipulation and processing.
+  - Kotlin: For Android application development and integration.
+    
+  - MinIO: For storing Parquet files.
+    
+  - Python: For back-end server processing and AI model integration.
+    
+  - PySpark & Pandas: For efficient data manipulation and processing.
 
 ## Development Plans:
 
