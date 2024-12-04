@@ -32,15 +32,31 @@ def store_received_data(received_data, bucket_name="wl-data"):
         user_id = data[0].get("user_id", "unknown_user")
         timestamp = data[0].get("timestamp", datetime.utcnow().isoformat())
 
-        # Convert the data into a DataFrame
+        # Serialize or handle fields as needed
+        gps_value = data[0].get("GPS", {})
+        serialized_gps = json.dumps(gps_value) if not isinstance(gps_value, str) else gps_value
+        wifi_value = data[0].get("WiFi", {})
+        serialized_wifi = json.dumps(wifi_value) if not isinstance(wifi_value, str) else wifi_value
+        channel_value = data[0].get("Channel", {})
+        serialized_channel = json.dumps(channel_value) if not isinstance(channel_value, str) else channel_value
+        ground_truth_value = data[0].get("ground_truth", {})
+        serialized_ground_truth = json.dumps(ground_truth_value) if not isinstance(ground_truth_value, str) else ground_truth_value
+
+        rssi_value = data[0].get("rssi", None)
+        serialized_rssi = rssi_value if isinstance(rssi_value, (int, float, str)) else None
+
+        # Create the DataFrame
         data_entry = {
             "user_id": [user_id],
             "timestamp": [timestamp],
             "IMU": [json.dumps(data[0].get("IMU", {}))],
-            "GPS": [json.dumps(data[0].get("GPS", {}))],
-            "WiFi": [json.dumps(data[0].get("WiFi", {}))],
-            "Channel": [json.dumps(data[0].get("Channel", {}))],
+            "GPS": [serialized_gps],
+            "WiFi": [serialized_wifi],
+            "Channel": [serialized_channel],
+            "rssi": [serialized_rssi],
+            "ground_truth": [serialized_ground_truth],  # Ensure it's added correctly
         }
+
         df = pd.DataFrame(data_entry)
 
         # Save DataFrame as Parquet in memory
@@ -48,10 +64,8 @@ def store_received_data(received_data, bucket_name="wl-data"):
         df.to_parquet(parquet_buffer, engine="pyarrow", index=False)
         parquet_buffer.seek(0)
 
-        # Define the object name using User ID and Timestamp in the format "UserId/Timestamp"
+        # Save to MinIO
         object_name = f"{user_id}/{timestamp}.parquet"
-
-        # Store the data in MinIO
         minio_client.put_object(
             bucket_name,
             object_name,
@@ -59,9 +73,7 @@ def store_received_data(received_data, bucket_name="wl-data"):
             length=parquet_buffer.getbuffer().nbytes,
             content_type="application/x-parquet",
         )
-        print(
-            f"Successfully stored data for {user_id} at {timestamp} in Parquet format."
-        )
+        print(f"Successfully stored data for {user_id} at {timestamp} in Parquet format.")
     except Exception as e:
         print(f"Error storing data in MinIO: {str(e)}")
 
