@@ -4,16 +4,19 @@ import datetime
 import re
 import json
 import time
+import random
 
 
 # RUN "minio server /Users/harrisonmoore/data" in your terminal to start server
 
 BROKER = "128.205.218.189"
 PORT = 1883
+IMU_DATA = "/imu"
+GPS_DATA = "/gps"
 TOPIC = "test/topic"
 WIFI = "/csi"
-LIST_OF_TOPICS = [TOPIC, WIFI]
-CLIENT_ID = "retrieve-imu-data"
+LIST_OF_TOPICS = [TOPIC, IMU_DATA, GPS_DATA, WIFI]
+CLIENT_ID = str(random.randint(100000, 999999))
 MARGIN = 500  # In ms
 
 
@@ -49,7 +52,7 @@ class IMU_GPS_publisher:
     def subscribe(self, client: mqtt_client):
         def on_message(client, userdata, msg):
             global GPS_LIST
-            if msg.topic == "test/topic":
+            if msg.topic == "/imu":
                 data = msg.payload.decode().split(",")
                 if (
                     data[0]
@@ -74,6 +77,8 @@ class IMU_GPS_publisher:
                     time_stamp = data[4]
                     device_id = data[5]
                     self.gyroscope_list = [tag, x, y, z, time_stamp, device_id]
+            if msg.topic == "/gps":
+                data = msg.payload.decode().split(",")
                 if data[0] == "GPS":  # Handles GPS data that has been recieved
                     # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
                     tag = data[0]
@@ -227,6 +232,7 @@ def remove_lists(data: str) -> list[str]:
 
 
 def run():
+    print(CLIENT_ID)
     mqttHandler = IMU_GPS_publisher(CLIENT_ID, BROKER, PORT, LIST_OF_TOPICS)
     client = mqttHandler.connect_mqtt()
     mqttHandler.subscribe(client=client)
