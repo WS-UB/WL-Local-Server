@@ -18,6 +18,37 @@ This project directory consists of two nodes and three files:
 - [retrieve_data_from_minio.py](./src/retrieve_data_from_minio.py): This file will be used as a pipeline between MinIO and MQTT. In this file, we implement a function that receives multiple message request from the MQTT broker (which is sent from the phone) and use the information from the query to receive data from MinIO. Once we receive the data, we will use it for data processing and send the necessary information back the application's MQTT subscriber.
 - [sync_minio_and_mqtt.py](./src/sync_minio_and_mqtt.py): This file will be used as a pipeline between MinIO and MQTT. In this file, we implement a function that receives multiple message request from the MQTT broker (which is sent from the phone) and use the information from the query to receive data from MinIO. Once we receive the data, we will use it for data processing and send the necessary information back the application's MQTT subscriber.
 
+### Data Types and Keys
+When running the _data_processing.py_, these are the following data that is collected from the app and the Wifi routers and sent to the MinIO database:
+- **_user_id_** `(str)`: The ID of the user. It varies between phones. A Google Pixel 7A user ID can be different from a Google Pixel 8A.
+
+- **_timestamp_** `(str)`: When collecting data from the app (phone), this data works as a time record of collecting data in live time. The format of this data is a string: "YYYY-MM-DDTHH:MnMn:SS". In this case, YYYY is the year, MM is the month, DD is the day, HH is the hour, Mn is the minute, and SS is the second.
+  
+- **_GPS_**: The coordinates of the user's location based on the phone's GPS. The data type is a dictionary with two keys:
+    + **_latitude_** `(float64)`: The latitude of the user
+    + **_longitude_** `(float64)`: The longitude of the user
+  
+- **_IMU_**: Records the gyroscope and the accelerator of the phone. The data type is a dictionary with two keys:
+    + **_gyroscope_** `(float64)`: The gyroscope of the phone.
+    + **_accelerator_** `(float64)`: The accelerator of the phone.
+ 
+- **_Wifi_**: This is where the Wifi data collected from the router is stored. The data type is a dictionary with four keys:
+    + **_csi_imag_** `(float64)`: Imaginary part of CSI.
+    + **_csi_real_** `(float64)`: Real part of Channel state information (CSI).
+    + **_rssi_** `(int32)`: Signal strength in dB, measured for each receive antenna.
+    + **_ap_id_** `(uint8)`: user-defined id to distinguish data from multiple APs.                                                                                                                                                                                                   
+- **_Channel_**: TBD...
+    + ***chan*** `(uint8)`: Channel number.
+    + ***bw*** `(uint8)`: Bandwidth in MHz.
+    + ***nss*** `(uint8)`: Number of signal streams, within the range of 0-3.
+    + ***ntx*** `(uint8)`: Number of transmit antennas, within the range 1-4.
+    + ***nrx*** `(uint8)`: Number of receive antennas, within the range of 1-4.
+    + ***mcs*** `(uint8)`: Only used for quantenna.
+  
+- **_ground_truth_**: This data is used to record the actual GPS location where the user is standing. Currently, this acts as dummy data.
+
+**<ins>Note:</ins>** The information that is written in bold and italics are the keys to accessing the data. If you want to use the user ID, the key should be **user_id**. If you want to use the latitude, you need to access the GPS by using the key "**GPS**" and then use "**latitude**" to access the data.
+
 ## Problem Definition
 
 We aim to create a stable Android mobile application for indoor navigation and WiFi-based data collection. This semester, we will focus on resolving technical issues with the data collection app, enhancing the user interface, and integrating server-side data processing using AWS. Additionally, we will develop a functional navigational interface similar to Google Maps, enabling users to track their indoor location within large buildings like malls and airports. In the long term, we aspire to deploy a fully functional, scalable system that enables seamless indoor navigation by utilizing WiFi signals and real-time data collection. By leveraging machine learning models, we will enhance accuracy in indoor positioning, ensuring privacy and efficiency through the use of hashed user data. Our goal is to provide a robust and open-source platform that can be adapted for various large-scale indoor environments.
