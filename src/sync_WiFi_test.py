@@ -5,6 +5,7 @@ import re
 import json
 import time
 import random
+import string
 
 
 # RUN "minio server /Users/harrisonmoore/data" in your terminal to start server
@@ -16,7 +17,7 @@ GPS_DATA = "/gps"
 TOPIC = "test/topic"
 WIFI = "/csi"
 LIST_OF_TOPICS = [TOPIC, IMU_DATA, GPS_DATA, WIFI]
-CLIENT_ID = str(random.randint(100000, 999999))
+CLIENT_ID = "".join(random.choices((string.ascii_letters + string.digits), k=6))
 MARGIN = 500  # In ms
 
 
@@ -232,7 +233,7 @@ def remove_lists(data: str) -> list[str]:
 
 
 def run():
-    print(CLIENT_ID)
+    print(f"Unique client ID: {CLIENT_ID}")
     mqttHandler = IMU_GPS_publisher(CLIENT_ID, BROKER, PORT, LIST_OF_TOPICS)
     client = mqttHandler.connect_mqtt()
     mqttHandler.subscribe(client=client)
