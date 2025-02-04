@@ -4,12 +4,13 @@ from paho.mqtt import client as mqtt_client
 from datetime import datetime
 import re
 import random
+import string
 import pandas as pd
 
 BROKER = "128.205.218.189"
 PORT = 1883
 TOPIC = "/csi"
-CLIENT_ID_WIFI = str(random.randint(100000, 999999))
+CLIENT_ID_WIFI = "".join(random.choices((string.ascii_letters + string.digits), k=6))
 
 
 def run():
