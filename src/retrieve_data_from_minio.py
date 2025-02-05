@@ -47,8 +47,38 @@ def read_parquet_data(user_id, timestamp, bucket_name="wl-data"):
         print("-------------------------------------------------------------------------------------")
         return None
 
-# * Feature 2: Get live user_id and timestamp from MQTT
-# Feature 2: Get live user_id and optional timestamp from MQTT
+# * Feature 2: Display the content of the parquet files in MinIO based on user_id.
+def display_content(bucket_name, folder):
+    """Display the content of each object in the specified folder in MinIO."""
+    try:
+        # List all objects in the specified folder
+        objects = minio_client.list_objects(bucket_name, prefix=folder + "/", recursive=True)
+        
+        # Process each object in the folder
+        for obj in objects:
+            print(f"\nRetrieving and displaying content for object: {obj.object_name}")
+            
+            # Retrieve the object from MinIO
+            response = minio_client.get_object(bucket_name, obj.object_name)
+            
+            try:
+                # Read Parquet data into a DataFrame
+                data = pd.read_parquet(BytesIO(response.read()), engine='pyarrow')
+                
+                # Display the content of the DataFrame
+                print(data)
+            except Exception as e:
+                print(f"Error reading object {obj.object_name}: {str(e)}")
+            finally:
+                # Close the response to release resources
+                response.close()
+                response.release_conn()
+                
+    except Exception as e:
+        print(f"Error listing objects in folder {folder}: {str(e)}")
+
+# * Feature 3: Get live user_id and timestamp from MQTT
+# Feature 3: Get live user_id and optional timestamp from MQTT
 def on_message(client, userdata, message):
     try:
         # Decode the message payload
@@ -64,17 +94,19 @@ def on_message(client, userdata, message):
             if line.startswith("macAddress:"):
                 user_id = line.split(": ")[1].strip()
             elif line.startswith("timestamp:"):
-                timestamp = line.split(": ")[1].strip()
+                # timestamp = line.split(": ")[1].strip()
+                timestamp = None
 
         if user_id:
-            if timestamp:
+            if timestamp is not None:
                 # Case 1: Both user_id and timestamp are provided
+                print("Receive userId and timestamp")
                 print(f"Retrieving data for user_id: {user_id} and timestamp: {timestamp}")
                 retrieved_data = read_parquet_data(user_id, timestamp)
             else:
                 # Case 2: Only user_id is provided
                 print(f"Retrieving all data for user_id: {user_id}")
-                retrieved_data = read_parquet_data(user_id)  # No timestamp provided
+                retrieved_data = display_content("wl-data", user_id)  # No timestamp provided
 
             if retrieved_data is not None:
                 # Send the retrieved data back to MQTT
@@ -83,8 +115,7 @@ def on_message(client, userdata, message):
     except Exception as e:
         print(f"Error processing message: {str(e)}")
 
-
-# * Feature 3: Send data back to MQTT
+# * Feature 4: Send data back to MQTT
 def send_data_to_mqtt(data, broker=MQTT_BROKER, port=MQTT_PORT, topic=MQTT_OUTPUT_TOPIC):
     """Send GPS data to the specified MQTT topic."""
     # Check if the data is empty or not in the expected format
