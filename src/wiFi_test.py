@@ -1,4 +1,4 @@
-from src.MQTT_Handler import MQTTHandler
+from MQTT_Handler import MQTTHandler
 import threading
 from paho.mqtt import client as mqtt_client
 from datetime import datetime
