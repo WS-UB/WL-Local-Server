@@ -97,14 +97,14 @@ class IMU_GPS_publisher:
                 csi_imag = list_of_data[2]
                 data = remove_lists(formatted_data)
                 wifi_timestamp = str(datetime.datetime.now())
-                rssi = data[14].split(":")[1]
-                ap_id = data[6].split(":")[1]
-                chan = data[8].split(":")[1]
-                bw = data[12].split(":")[1]
-                mcs = data[13].split(":")[1]
-                nsub = data[9].split(":")[1]
-                nrows = data[10].split(":")[1]
-                ncols = data[11].split(":")[1]
+                rssi = data[1].split(":")[1]
+                ap_id = data[11].split(":")[1]
+                chan = data[2].split(":")[1]
+                bw = data[3].split(":")[1]
+                mcs = data[12].split(":")[1]
+                nsub = data[7].split(":")[1]
+                nrows = data[9].split(":")[1]
+                ncols = data[10].split(":")[1]
                 self.WiFi_list = [
                     wifi_timestamp,
                     csi_imag,
