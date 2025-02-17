@@ -4,16 +4,20 @@ import datetime
 import re
 import json
 import time
+import random
+import string
 
 
 # RUN "minio server /Users/harrisonmoore/data" in your terminal to start server
 
 BROKER = "128.205.218.189"
 PORT = 1883
+IMU_DATA = "/imu"
+GPS_DATA = "/gps"
 TOPIC = "test/topic"
 WIFI = "/csi"
-LIST_OF_TOPICS = [TOPIC, WIFI]
-CLIENT_ID = "retrieve-imu-data"
+LIST_OF_TOPICS = [TOPIC, IMU_DATA, GPS_DATA, WIFI]
+CLIENT_ID = "".join(random.choices((string.ascii_letters + string.digits), k=6))
 MARGIN = 500  # In ms
 
 
@@ -49,7 +53,7 @@ class IMU_GPS_publisher:
     def subscribe(self, client: mqtt_client):
         def on_message(client, userdata, msg):
             global GPS_LIST
-            if msg.topic == "test/topic":
+            if msg.topic == "/imu":
                 data = msg.payload.decode().split(",")
                 if (
                     data[0]
@@ -74,6 +78,8 @@ class IMU_GPS_publisher:
                     time_stamp = data[4]
                     device_id = data[5]
                     self.gyroscope_list = [tag, x, y, z, time_stamp, device_id]
+            if msg.topic == "/gps":
+                data = msg.payload.decode().split(",")
                 if data[0] == "GPS":  # Handles GPS data that has been recieved
                     # print(f"Received '{msg.payload.decode()}' from '{msg.topic}' topic")
                     tag = data[0]
@@ -91,14 +97,14 @@ class IMU_GPS_publisher:
                 csi_imag = list_of_data[2]
                 data = remove_lists(formatted_data)
                 wifi_timestamp = str(datetime.datetime.now())
-                rssi = data[14].split(":")[1]
-                ap_id = data[6].split(":")[1]
-                chan = data[8].split(":")[1]
-                bw = data[12].split(":")[1]
-                mcs = data[13].split(":")[1]
-                nsub = data[9].split(":")[1]
-                nrows = data[10].split(":")[1]
-                ncols = data[11].split(":")[1]
+                rssi = data[1].split(":")[1]
+                ap_id = data[11].split(":")[1]
+                chan = data[2].split(":")[1]
+                bw = data[3].split(":")[1]
+                mcs = data[12].split(":")[1]
+                nsub = data[7].split(":")[1]
+                nrows = data[9].split(":")[1]
+                ncols = data[10].split(":")[1]
                 self.WiFi_list = [
                     wifi_timestamp,
                     csi_imag,
@@ -236,6 +242,7 @@ def remove_lists(data: str) -> list[str]:
 
 
 def run():
+    print(f"Unique client ID: {CLIENT_ID}")
     mqttHandler = IMU_GPS_publisher(CLIENT_ID, BROKER, PORT, LIST_OF_TOPICS)
     client = mqttHandler.connect_mqtt()
     mqttHandler.subscribe(client=client)
