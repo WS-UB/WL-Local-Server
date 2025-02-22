@@ -96,7 +96,7 @@ class IMU_GPS_publisher:
                 csi_real = list_of_data[1]
                 csi_imag = list_of_data[2]
                 data = remove_lists(formatted_data)
-                wifi_timestamp = str(datetime.datetime.now())
+                wifi_timestamp = data[14].split(";")[1]
                 rssi = data[1].split(":")[1]
                 ap_id = data[11].split(":")[1]
                 chan = data[2].split(":")[1]
