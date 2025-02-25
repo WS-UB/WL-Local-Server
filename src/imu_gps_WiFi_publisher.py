@@ -15,14 +15,23 @@ PORT = 1883
 IMU_DATA = "/imu"
 GPS_DATA = "/gps"
 TOPIC = "test/topic"
-WIFI = "/csi"
-LIST_OF_TOPICS = [TOPIC, IMU_DATA, GPS_DATA, WIFI]
+WIFI_CS1 = "/csi-1"
+WIFI_CS2 = "/csi-2"
+WIFI_CS3 = "/csi-2"
+LIST_OF_TOPICS = [TOPIC, IMU_DATA, GPS_DATA, WIFI_CS1, WIFI_CS2, WIFI_CS3]
 CLIENT_ID = "".join(random.choices((string.ascii_letters + string.digits), k=6))
 MARGIN = 500  # In ms
 
 
 class IMU_GPS_publisher:
-    def __init__(self, client_id: str, broker: str, port: int, topics: list[str]):
+    def __init__(
+        self,
+        client_id: str,
+        broker: str,
+        port: int,
+        topics: list[str],
+        num_of_routers: int,
+    ):
         self.client_id = client_id
         self.broker = broker
         self.port = port
@@ -30,8 +39,11 @@ class IMU_GPS_publisher:
         self.accelerator_list = []
         self.gyroscope_list = []
         self.GPS_list = []
-        self.WiFi_list = []
+        self.WiFi_CSI_1 = []
+        self.WiFi_CSI_2 = []
+        self.Wifi_CSI_3 = []
         self.CLIENT = None
+        self.num_of_routers = num_of_routers
         global MARGIN
 
     def connect_mqtt(self):
@@ -88,66 +100,48 @@ class IMU_GPS_publisher:
                     lat = data[3]
                     long = data[4]
                     self.GPS_list = [tag, device_id, time_stamp, lat, long]
-            if msg.topic == "/csi":
+            if msg.topic == "/csi-1":
                 raw_data = msg.payload.decode()
-                formatted_data = raw_data.replace("\n", ",")
-                list_of_data = extract_lists(formatted_data)
-                txmac = list_of_data[0]
-                csi_real = list_of_data[1]
-                csi_imag = list_of_data[2]
-                data = remove_lists(formatted_data)
-                wifi_timestamp = data[14].split(";")[1]
-                rssi = data[1].split(":")[1]
-                ap_id = data[11].split(":")[1]
-                chan = data[2].split(":")[1]
-                bw = data[3].split(":")[1]
-                mcs = data[12].split(":")[1]
-                nsub = data[7].split(":")[1]
-                nrows = data[9].split(":")[1]
-                ncols = data[10].split(":")[1]
-                self.WiFi_list = [
-                    wifi_timestamp,
-                    csi_imag,
-                    csi_real,
-                    rssi,
-                    ap_id,
-                    chan,
-                    bw,
-                    mcs,
-                    nsub,
-                    nrows,
-                    ncols,
-                ]
+                wifiData = get_WiFi_data(raw_data=raw_data)
+                self.WiFi_CSI_1 = wifiData
+            if msg.topic == "/csi-2":
+                raw_data = msg.payload.decode()
+                wifiData = get_WiFi_data(raw_data=raw_data)
+                self.WiFi_CSI_2 = wifiData
+            if msg.topic == "/csi-3":
+                raw_data = msg.payload.decode()
+                wifiData = get_WiFi_data(raw_data=raw_data)
+                self.WiFi_CSI_3 = wifiData
 
-            if (
-                len(self.accelerator_list) > 0
-                and len(self.gyroscope_list)
-                > 0  # Handles synchronization of the IMU and GPS data
-                and len(self.GPS_list) > 0
-                and len(self.WiFi_list) > 0
-            ):
-                accel_id = self.accelerator_list[5]
-                gyro_id = self.gyroscope_list[5]
-                GPS_id = self.GPS_list[1]
-                if accel_id == gyro_id == GPS_id:
-                    gyro_timestamp = int(self.gyroscope_list[4].split(".")[1])
-                    accel_timestamp = int(self.accelerator_list[4].split(".")[1])
-                    GPS_timestamp = int(self.GPS_list[2].split(".")[1])
-                    try:
-                        WiFI_timestamp = int(self.WiFi_list[0].split(".")[1][:-3])
-                    except:
-                        WiFI_timestamp = 0
-                    timestamp_avg = abs(
-                        (
-                            accel_timestamp
-                            + gyro_timestamp
-                            + GPS_timestamp
-                            + WiFI_timestamp
-                        )
-                        / 3
-                    )
-                    if timestamp_avg <= MARGIN:
-                        self.publish()
+            if self.num_of_routers == 1:
+                timestamp_avg = one_router(
+                    self.accelerator_list,
+                    self.gyroscope_list,
+                    self.GPS_list,
+                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.Wifi_CSI_3],
+                )
+                if (timestamp_avg <= MARGIN) and (timestamp_avg != 0):
+                    self.publish()
+
+            if self.num_of_routers == 2:
+                timestamp_avg = two_routers(
+                    self.accelerator_list,
+                    self.gyroscope_list,
+                    self.GPS_list,
+                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.Wifi_CSI_3],
+                )
+                if (timestamp_avg <= MARGIN) and (timestamp_avg != 0):
+                    self.publish()
+
+            if self.num_of_routers == 3:
+                timestamp_avg = one_router(
+                    self.accelerator_list,
+                    self.gyroscope_list,
+                    self.GPS_list,
+                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.Wifi_CSI_3],
+                )
+                if (timestamp_avg <= MARGIN) and (timestamp_avg != 0):
+                    self.publish()
 
         for topic in self.topics:
             client.subscribe(topic)
@@ -156,7 +150,7 @@ class IMU_GPS_publisher:
     def publish(
         self,
     ):  # Packages IMU and GPS data into JSON to sent to the MinIO bucket
-        data_timestamp: str = self.WiFi_list[0]
+        data_timestamp: str = self.GPS_list[2]
         gyro_xyz = [
             float(self.gyroscope_list[1]),
             float(self.gyroscope_list[2]),
@@ -172,24 +166,13 @@ class IMU_GPS_publisher:
         GPS_lat = float(self.GPS_list[3])
         GPS_long = float(self.GPS_list[4])
 
-        WiFi_csi_imag = self.WiFi_list[1]
-        WiFi_csi_real = self.WiFi_list[2]
-        WiFi_rssi = self.WiFi_list[3]
-        WiFi_ap_id = self.WiFi_list[4]
-        WiFi_chan = self.WiFi_list[5]
-        WiFi_bw = self.WiFi_list[6]
-        WiFi_mcs = self.WiFi_list[7]
-        WiFi_nsub = self.WiFi_list[8]
-        WiFi_nrows = self.WiFi_list[9]
-        WiFi_ncols = self.WiFi_list[10]
-
         device_id = self.GPS_list[1]
 
         test_list = [
             self.GPS_list,
             self.accelerator_list,
             self.gyroscope_list,
-            self.WiFi_list,
+            [self.WiFi_CSI_1, self.WiFi_CSI_2, self.Wifi_CSI_3],
         ]
         print(f"Send `{test_list}` to topic `{self.topics[0]}`")
 
@@ -205,18 +188,9 @@ class IMU_GPS_publisher:
                     "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
                     "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
                     "WiFi": {
-                        "csi_imag": WiFi_csi_imag,
-                        "csi_real": WiFi_csi_real,
-                        "rssi": WiFi_rssi,
-                        "ap_id": WiFi_ap_id,
-                    },
-                    "Channel": {
-                        "chan": WiFi_chan,
-                        "bw": WiFi_bw,
-                        "nsub": WiFi_nsub,
-                        "nrows": WiFi_nrows,
-                        "ncol": WiFi_ncols,
-                        "mcs": WiFi_mcs,
+                        "WiFi-AP-1": self.WiFi_CSI_1,
+                        "WiFi-AP-2": self.WiFi_CSI_2,
+                        "WiFi-AP-3": self.Wifi_CSI_3,
                     },
                 }
             ]
@@ -241,9 +215,259 @@ def remove_lists(data: str) -> list[str]:
     return split_string
 
 
+def get_WiFi_data(raw_data: str) -> list[str]:
+    formatted_data = raw_data.replace("\n", ",")
+    list_of_data = extract_lists(formatted_data)
+    csi_real = list_of_data[1]
+    csi_imag = list_of_data[2]
+    data = remove_lists(formatted_data)
+    wifi_timestamp = data[14].split(";")[1]
+    rssi = data[1].split(":")[1]
+    ap_id = data[11].split(":")[1]
+    chan = data[2].split(":")[1]
+    bw = data[3].split(":")[1]
+    mcs = data[12].split(":")[1]
+    nsub = data[7].split(":")[1]
+    nrows = data[9].split(":")[1]
+    ncols = data[10].split(":")[1]
+    rx_id = data[13].split(":")[1]
+    wiFiData = [
+        wifi_timestamp,
+        csi_imag,
+        csi_real,
+        rssi,
+        ap_id,
+        chan,
+        bw,
+        mcs,
+        nsub,
+        nrows,
+        ncols,
+        rx_id,
+    ]
+    return wiFiData
+
+
+def one_router(accelerator_list, gyroscope_list, GPS_list, WiFi_lists):
+    WiFi_CSI1 = WiFi_lists[0]
+    WiFi_CSI2 = WiFi_lists[1]
+    WiFi_CSI3 = WiFi_lists[2]
+    if (
+        len(accelerator_list) > 0
+        and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
+        and len(GPS_list) > 0
+        and len(WiFi_CSI1) > 0
+    ):
+        accel_id = accelerator_list[5]
+        gyro_id = gyroscope_list[5]
+        GPS_id = GPS_list[1]
+        if accel_id == gyro_id == GPS_id:
+            gyro_timestamp = int(gyroscope_list[4].split(".")[1])
+            accel_timestamp = int(accelerator_list[4].split(".")[1])
+            GPS_timestamp = int(GPS_list[2].split(".")[1])
+            try:
+                WiFI_timestamp = int(WiFi_CSI1[0].split(".")[1][:-3])
+            except:
+                WiFI_timestamp = 0
+            timestamp_avg = abs(
+                (accel_timestamp + gyro_timestamp + GPS_timestamp + WiFI_timestamp) / 3
+            )
+            return timestamp_avg
+    if (
+        len(accelerator_list) > 0
+        and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
+        and len(GPS_list) > 0
+        and len(WiFi_CSI2) > 0
+    ):
+        accel_id = accelerator_list[5]
+        gyro_id = gyroscope_list[5]
+        GPS_id = GPS_list[1]
+        if accel_id == gyro_id == GPS_id:
+            gyro_timestamp = int(gyroscope_list[4].split(".")[1])
+            accel_timestamp = int(accelerator_list[4].split(".")[1])
+            GPS_timestamp = int(GPS_list[2].split(".")[1])
+            try:
+                WiFI_timestamp = int(WiFi_CSI2[0].split(".")[1][:-3])
+            except:
+                WiFI_timestamp = 0
+            timestamp_avg = abs(
+                (accel_timestamp + gyro_timestamp + GPS_timestamp + WiFI_timestamp) / 3
+            )
+            return timestamp_avg
+    if (
+        len(accelerator_list) > 0
+        and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
+        and len(GPS_list) > 0
+        and len(WiFi_CSI3) > 0
+    ):
+        accel_id = accelerator_list[5]
+        gyro_id = gyroscope_list[5]
+        GPS_id = GPS_list[1]
+        if accel_id == gyro_id == GPS_id:
+            gyro_timestamp = int(gyroscope_list[4].split(".")[1])
+            accel_timestamp = int(accelerator_list[4].split(".")[1])
+            GPS_timestamp = int(GPS_list[2].split(".")[1])
+            try:
+                WiFI_timestamp = int(WiFi_CSI3[0].split(".")[1][:-3])
+            except:
+                WiFI_timestamp = 0
+            timestamp_avg = abs(
+                (accel_timestamp + gyro_timestamp + GPS_timestamp + WiFI_timestamp) / 3
+            )
+            return timestamp_avg
+    return 0
+
+
+def two_routers(accelerator_list, gyroscope_list, GPS_list, WiFi_lists):
+    WiFi_CSI1 = WiFi_lists[0]
+    WiFi_CSI2 = WiFi_lists[1]
+    WiFi_CSI3 = WiFi_lists[2]
+    if (
+        len(accelerator_list) > 0
+        and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
+        and len(GPS_list) > 0
+        and len(WiFi_CSI1) > 0
+        and len(WiFi_CSI2) > 0
+    ):
+        accel_id = accelerator_list[5]
+        gyro_id = gyroscope_list[5]
+        GPS_id = GPS_list[1]
+        if accel_id == gyro_id == GPS_id:
+            gyro_timestamp = int(gyroscope_list[4].split(".")[1])
+            accel_timestamp = int(accelerator_list[4].split(".")[1])
+            GPS_timestamp = int(GPS_list[2].split(".")[1])
+            try:
+                WiFI_CSI1_timestamp = int(WiFi_CSI1[0].split(".")[1][:-3])
+                WiFI_CSI2_timestamp = int(WiFi_CSI2[0].split(".")[1][:-3])
+            except:
+                WiFI_CSI1_timestamp = 0
+                WiFI_CSI2_timestamp = 0
+            timestamp_avg = abs(
+                (
+                    accel_timestamp
+                    + gyro_timestamp
+                    + GPS_timestamp
+                    + WiFI_CSI1_timestamp
+                    + WiFI_CSI2_timestamp
+                )
+                / 5
+            )
+            return timestamp_avg
+    if (
+        len(accelerator_list) > 0
+        and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
+        and len(GPS_list) > 0
+        and len(WiFi_CSI2) > 0
+        and len(WiFi_CSI3) > 0
+    ):
+        accel_id = accelerator_list[5]
+        gyro_id = gyroscope_list[5]
+        GPS_id = GPS_list[1]
+        if accel_id == gyro_id == GPS_id:
+            gyro_timestamp = int(gyroscope_list[4].split(".")[1])
+            accel_timestamp = int(accelerator_list[4].split(".")[1])
+            GPS_timestamp = int(GPS_list[2].split(".")[1])
+            try:
+                WiFI_CSI2_timestamp = int(WiFi_CSI2[0].split(".")[1][:-3])
+                WiFI_CSI3_timestamp = int(WiFi_CSI3[0].split(".")[1][:-3])
+            except:
+                WiFI_CSI2_timestamp = 0
+                WiFI_CSI3_timestamp = 0
+            timestamp_avg = abs(
+                (
+                    accel_timestamp
+                    + gyro_timestamp
+                    + GPS_timestamp
+                    + WiFI_CSI2_timestamp
+                    + WiFI_CSI3_timestamp
+                )
+                / 5
+            )
+            return timestamp_avg
+
+    if (
+        len(accelerator_list) > 0
+        and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
+        and len(GPS_list) > 0
+        and len(WiFi_CSI1) > 0
+        and len(WiFi_CSI3) > 0
+    ):
+        accel_id = accelerator_list[5]
+        gyro_id = gyroscope_list[5]
+        GPS_id = GPS_list[1]
+        if accel_id == gyro_id == GPS_id:
+            gyro_timestamp = int(gyroscope_list[4].split(".")[1])
+            accel_timestamp = int(accelerator_list[4].split(".")[1])
+            GPS_timestamp = int(GPS_list[2].split(".")[1])
+            try:
+                WiFI_CSI1_timestamp = int(WiFi_CSI1[0].split(".")[1][:-3])
+                WiFI_CSI3_timestamp = int(WiFi_CSI3[0].split(".")[1][:-3])
+            except:
+                WiFI_CSI1_timestamp = 0
+                WiFI_CSI3_timestamp = 0
+            timestamp_avg = abs(
+                (
+                    accel_timestamp
+                    + gyro_timestamp
+                    + GPS_timestamp
+                    + WiFI_CSI1_timestamp
+                    + WiFI_CSI3_timestamp
+                )
+                / 5
+            )
+            return timestamp_avg
+    return 0
+
+
+def three_routers(accelerator_list, gyroscope_list, GPS_list, WiFi_lists):
+    WiFi_CSI1 = WiFi_lists[0]
+    WiFi_CSI2 = WiFi_lists[1]
+    WiFi_CSI3 = WiFi_lists[2]
+    if (
+        len(accelerator_list) > 0
+        and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
+        and len(GPS_list) > 0
+        and len(WiFi_CSI1) > 0
+        and len(WiFi_CSI2) > 0
+        and len(WiFi_CSI3) > 0
+    ):
+        accel_id = accelerator_list[5]
+        gyro_id = gyroscope_list[5]
+        GPS_id = GPS_list[1]
+        if accel_id == gyro_id == GPS_id:
+            gyro_timestamp = int(gyroscope_list[4].split(".")[1])
+            accel_timestamp = int(accelerator_list[4].split(".")[1])
+            GPS_timestamp = int(GPS_list[2].split(".")[1])
+            try:
+                WiFI_CSI1_timestamp = int(WiFi_CSI1[0].split(".")[1][:-3])
+                WiFI_CSI2_timestamp = int(WiFi_CSI2[0].split(".")[1][:-3])
+                WiFI_CSI3_timestamp = int(WiFi_CSI2[0].split(".")[1][:-3])
+            except:
+                WiFI_CSI1_timestamp = 0
+                WiFI_CSI2_timestamp = 0
+                WiFI_CSI3_timestamp = 0
+
+            timestamp_avg = abs(
+                (
+                    accel_timestamp
+                    + gyro_timestamp
+                    + GPS_timestamp
+                    + WiFI_CSI1_timestamp
+                    + WiFI_CSI2_timestamp
+                    + WiFI_CSI3_timestamp
+                )
+                / 6
+            )
+            return timestamp_avg
+    return 0
+
+
 def run():
     print(f"Unique client ID: {CLIENT_ID}")
-    mqttHandler = IMU_GPS_publisher(CLIENT_ID, BROKER, PORT, LIST_OF_TOPICS)
+    NUM_OF_ROUTERS = int(input("Number of routers streaming data?: "))
+    mqttHandler = IMU_GPS_publisher(
+        CLIENT_ID, BROKER, PORT, LIST_OF_TOPICS, NUM_OF_ROUTERS
+    )
     client = mqttHandler.connect_mqtt()
     mqttHandler.subscribe(client=client)
     client.loop_forever()
