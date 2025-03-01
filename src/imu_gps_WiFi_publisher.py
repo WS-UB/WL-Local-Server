@@ -15,9 +15,9 @@ PORT = 1883
 IMU_DATA = "/imu"
 GPS_DATA = "/gps"
 TOPIC = "test/topic"
-WIFI_CS1 = "/csi-1"
-WIFI_CS2 = "/csi-2"
-WIFI_CS3 = "/csi-2"
+WIFI_CS1 = "/csi-ap1"
+WIFI_CS2 = "/csi-ap2"
+WIFI_CS3 = "/csi-ap3"
 LIST_OF_TOPICS = [TOPIC, IMU_DATA, GPS_DATA, WIFI_CS1, WIFI_CS2, WIFI_CS3]
 CLIENT_ID = "".join(random.choices((string.ascii_letters + string.digits), k=6))
 MARGIN = 500  # In ms
@@ -100,15 +100,15 @@ class IMU_GPS_publisher:
                     lat = data[3]
                     long = data[4]
                     self.GPS_list = [tag, device_id, time_stamp, lat, long]
-            if msg.topic == "/csi-1":
+            if msg.topic == "/csi-ap1":
                 raw_data = msg.payload.decode()
                 wifiData = get_WiFi_data(raw_data=raw_data)
                 self.WiFi_CSI_1 = wifiData
-            if msg.topic == "/csi-2":
+            if msg.topic == "/csi-ap2":
                 raw_data = msg.payload.decode()
                 wifiData = get_WiFi_data(raw_data=raw_data)
                 self.WiFi_CSI_2 = wifiData
-            if msg.topic == "/csi-3":
+            if msg.topic == "/csi-ap3":
                 raw_data = msg.payload.decode()
                 wifiData = get_WiFi_data(raw_data=raw_data)
                 self.WiFi_CSI_3 = wifiData
@@ -218,19 +218,19 @@ def remove_lists(data: str) -> list[str]:
 def get_WiFi_data(raw_data: str) -> list[str]:
     formatted_data = raw_data.replace("\n", ",")
     list_of_data = extract_lists(formatted_data)
-    csi_real = list_of_data[1]
-    csi_imag = list_of_data[2]
+    csi_real = f"csi_r: {list_of_data[1]}"
+    csi_imag = f"csi_i: {list_of_data[2]}"
     data = remove_lists(formatted_data)
     wifi_timestamp = data[14].split(";")[1]
-    rssi = data[1].split(":")[1]
-    ap_id = data[11].split(":")[1]
-    chan = data[2].split(":")[1]
-    bw = data[3].split(":")[1]
-    mcs = data[12].split(":")[1]
-    nsub = data[7].split(":")[1]
-    nrows = data[9].split(":")[1]
-    ncols = data[10].split(":")[1]
-    rx_id = data[13].split(":")[1]
+    rssi = data[1]
+    ap_id = data[11]
+    chan = data[2]
+    bw = data[3]
+    mcs = data[12]
+    nsub = data[7]
+    nrows = data[9]
+    ncols = data[10]
+    rx_id = data[13]
     wiFiData = [
         wifi_timestamp,
         csi_imag,
