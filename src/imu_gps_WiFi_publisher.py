@@ -41,7 +41,7 @@ class IMU_GPS_publisher:
         self.GPS_list = []
         self.WiFi_CSI_1 = []
         self.WiFi_CSI_2 = []
-        self.Wifi_CSI_3 = []
+        self.WiFi_CSI_3 = []
         self.CLIENT = None
         self.num_of_routers = num_of_routers
         global MARGIN
@@ -118,7 +118,7 @@ class IMU_GPS_publisher:
                     self.accelerator_list,
                     self.gyroscope_list,
                     self.GPS_list,
-                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.Wifi_CSI_3],
+                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.WiFi_CSI_3],
                 )
                 if (timestamp_avg <= MARGIN) and (timestamp_avg != 0):
                     self.publish()
@@ -128,17 +128,17 @@ class IMU_GPS_publisher:
                     self.accelerator_list,
                     self.gyroscope_list,
                     self.GPS_list,
-                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.Wifi_CSI_3],
+                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.WiFi_CSI_3],
                 )
                 if (timestamp_avg <= MARGIN) and (timestamp_avg != 0):
                     self.publish()
 
             if self.num_of_routers == 3:
-                timestamp_avg = one_router(
+                timestamp_avg = three_routers(
                     self.accelerator_list,
                     self.gyroscope_list,
                     self.GPS_list,
-                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.Wifi_CSI_3],
+                    [self.WiFi_CSI_1, self.WiFi_CSI_2, self.WiFi_CSI_3],
                 )
                 if (timestamp_avg <= MARGIN) and (timestamp_avg != 0):
                     self.publish()
@@ -172,7 +172,7 @@ class IMU_GPS_publisher:
             self.GPS_list,
             self.accelerator_list,
             self.gyroscope_list,
-            [self.WiFi_CSI_1, self.WiFi_CSI_2, self.Wifi_CSI_3],
+            [self.WiFi_CSI_1, self.WiFi_CSI_2, self.WiFi_CSI_3],
         ]
         print(f"Send `{test_list}` to topic `{self.topics[0]}`")
 
@@ -190,7 +190,7 @@ class IMU_GPS_publisher:
                     "WiFi": {
                         "WiFi-AP-1": self.WiFi_CSI_1,
                         "WiFi-AP-2": self.WiFi_CSI_2,
-                        "WiFi-AP-3": self.Wifi_CSI_3,
+                        "WiFi-AP-3": self.WiFi_CSI_3,
                     },
                 }
             ]
@@ -441,7 +441,7 @@ def three_routers(accelerator_list, gyroscope_list, GPS_list, WiFi_lists):
             try:
                 WiFI_CSI1_timestamp = int(WiFi_CSI1[0].split(".")[1][:-3])
                 WiFI_CSI2_timestamp = int(WiFi_CSI2[0].split(".")[1][:-3])
-                WiFI_CSI3_timestamp = int(WiFi_CSI2[0].split(".")[1][:-3])
+                WiFI_CSI3_timestamp = int(WiFi_CSI3[0].split(".")[1][:-3])
             except:
                 WiFI_CSI1_timestamp = 0
                 WiFI_CSI2_timestamp = 0
