@@ -121,10 +121,11 @@ def retrieve_data_from_minio(bucket_name="wl-data"):
 
         # Read Parquet data into a DataFrame
         data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
+        json_data = data.to_json(orient="records", indent=4)
 
         # Display the retrieved data
         print(f"Data for User ID: {user_id} at {timestamp}:")
-        print(data)
+        print(json_data)
     except Exception as e:
         print(f"Error retrieving data: {str(e)}")
         print(

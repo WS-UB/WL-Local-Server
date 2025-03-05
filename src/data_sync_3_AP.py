@@ -174,7 +174,7 @@ class IMU_GPS_publisher:
             self.gyroscope_list,
             [self.WiFi_CSI_1, self.WiFi_CSI_2, self.WiFi_CSI_3],
         ]
-        print(f"Send `{test_list}` to topic `{self.topics[0]}`")
+        print(f"Send `{test_list}` to MinIO bucket")
 
         self.accelerator_list = []
         self.gyroscope_list = []

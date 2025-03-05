@@ -6,10 +6,11 @@ import re
 import random
 import string
 import pandas as pd
+import time
 
 BROKER = "128.205.218.189"
 PORT = 1883
-TOPIC = "/csi-2"
+TOPIC = input("MQTT topic?[/csi-ap1, /csi-ap2, /csi-ap3]: ")
 CLIENT_ID_WIFI = "".join(random.choices((string.ascii_letters + string.digits), k=6))
 
 
