@@ -43,7 +43,6 @@ class IMU_GPS_publisher:
         broker: str,
         port: int,
         topics: list[str],
-        num_of_routers: int,
     ):
         self.client_id = client_id
         self.broker = broker
@@ -59,7 +58,6 @@ class IMU_GPS_publisher:
         self.WiFi_CSI_5 = []
         self.WiFi_CSI_6 = []
         self.CLIENT = None
-        self.num_of_routers = num_of_routers
         global MARGIN
 
     def connect_mqtt(self):
@@ -333,10 +331,7 @@ def six_routers(accelerator_list, gyroscope_list, GPS_list, WiFi_lists):
 
 def run():
     print(f"Unique client ID: {CLIENT_ID}")
-    NUM_OF_ROUTERS = int(input("Number of routers streaming data?: "))
-    mqttHandler = IMU_GPS_publisher(
-        CLIENT_ID, BROKER, PORT, LIST_OF_TOPICS, NUM_OF_ROUTERS
-    )
+    mqttHandler = IMU_GPS_publisher(CLIENT_ID, BROKER, PORT, LIST_OF_TOPICS)
     client = mqttHandler.connect_mqtt()
     mqttHandler.subscribe(client=client)
     client.loop_forever()
