@@ -34,16 +34,24 @@ def store_received_data(received_data, bucket_name="wl-data"):
 
         # Serialize or handle fields as needed
         gps_value = data[0].get("GPS", {})
-        serialized_gps = json.dumps(gps_value) if not isinstance(gps_value, str) else gps_value
+        serialized_gps = (
+            json.dumps(gps_value) if not isinstance(gps_value, str) else gps_value
+        )
         wifi_value = data[0].get("WiFi", {})
-        serialized_wifi = json.dumps(wifi_value) if not isinstance(wifi_value, str) else wifi_value
-        channel_value = data[0].get("Channel", {})
-        serialized_channel = json.dumps(channel_value) if not isinstance(channel_value, str) else channel_value
+        serialized_wifi = (
+            json.dumps(wifi_value) if not isinstance(wifi_value, str) else wifi_value
+        )
         ground_truth_value = data[0].get("ground_truth", {})
-        serialized_ground_truth = json.dumps(ground_truth_value) if not isinstance(ground_truth_value, str) else ground_truth_value
+        serialized_ground_truth = (
+            json.dumps(ground_truth_value)
+            if not isinstance(ground_truth_value, str)
+            else ground_truth_value
+        )
 
         rssi_value = data[0].get("rssi", None)
-        serialized_rssi = rssi_value if isinstance(rssi_value, (int, float, str)) else None
+        serialized_rssi = (
+            rssi_value if isinstance(rssi_value, (int, float, str)) else None
+        )
 
         # Create the DataFrame
         data_entry = {
@@ -52,8 +60,6 @@ def store_received_data(received_data, bucket_name="wl-data"):
             "IMU": [json.dumps(data[0].get("IMU", {}))],
             "GPS": [serialized_gps],
             "WiFi": [serialized_wifi],
-            "Channel": [serialized_channel],
-            "rssi": [serialized_rssi],
             "ground_truth": [serialized_ground_truth],  # Ensure it's added correctly
         }
 
@@ -73,7 +79,9 @@ def store_received_data(received_data, bucket_name="wl-data"):
             length=parquet_buffer.getbuffer().nbytes,
             content_type="application/x-parquet",
         )
-        print(f"Successfully stored data for {user_id} at {timestamp} in Parquet format.")
+        print(
+            f"Successfully stored data for {user_id} at {timestamp} in Parquet format."
+        )
     except Exception as e:
         print(f"Error storing data in MinIO: {str(e)}")
 
@@ -113,10 +121,11 @@ def retrieve_data_from_minio(bucket_name="wl-data"):
 
         # Read Parquet data into a DataFrame
         data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
+        json_data = data.to_json(orient="records", indent=4)
 
         # Display the retrieved data
         print(f"Data for User ID: {user_id} at {timestamp}:")
-        print(data)
+        print(json_data)
     except Exception as e:
         print(f"Error retrieving data: {str(e)}")
         print(
