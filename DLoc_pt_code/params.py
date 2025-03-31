@@ -25,6 +25,7 @@ opt_exp.batch_size = 32 #type=int, default=32, help='batch size for training and
 opt_exp.ds_step_trn = 1 #type=int, default=1, help='data sub-sampling number for the training data')
 opt_exp.ds_step_tst = 1 #type=int, default=1, help='data sub-sampling number for the testing data')
 opt_exp.weight_decay = 1e-5 #type=float, default=1e-5, help='weight decay parameter for the Adam optimizer')
+opt_exp.isFrozen = False  # Set to True if you want to start with frozen weights
 
 # ------ name of experiment ----------
 opt_exp.save_name = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime()) # experiment name when train_and_test.py is ran

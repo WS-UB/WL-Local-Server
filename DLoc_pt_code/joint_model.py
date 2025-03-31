@@ -15,16 +15,38 @@ Class Definition for 1 Encoder and 1 Decoder joint model
 '''
 class Enc_Dec_Network():
 
-    def initialize(self, opt, encoder, decoder, frozen_dec=False, frozen_enc=False, gpu_ids='1'):
+    # def initialize(self, opt, encoder, decoder, frozen_dec=False, frozen_enc=False, gpu_ids='1'):
+    #     self.opt = opt
+    #     self.isTrain = opt.isTrain
+    #     self.encoder = encoder
+    #     self.decoder = decoder
+    #     self.frozen_dec = frozen_dec
+    #     self.frozen_enc = frozen_enc
+    #     self.device = torch.device('cuda:{}'.format(gpu_ids[0])) # if self.gpu_ids else torch.device('cpu')
+    #     # self.encoder.net = encoder.net.to(self.device)
+    #     # self.decoder.net = decoder.net.to(self.device)
+
+    def initialize(self, opt, encoder, decoder, frozen_dec=False, frozen_enc=False, gpu_ids=None):
         self.opt = opt
         self.isTrain = opt.isTrain
         self.encoder = encoder
         self.decoder = decoder
         self.frozen_dec = frozen_dec
         self.frozen_enc = frozen_enc
-        self.device = torch.device('cuda:{}'.format(gpu_ids[0])) # if self.gpu_ids else torch.device('cpu')
-        # self.encoder.net = encoder.net.to(self.device)
-        # self.decoder.net = decoder.net.to(self.device)
+        
+        # Handle GPU/CPU device assignment safely
+        if gpu_ids is None:
+            gpu_ids = []
+        elif isinstance(gpu_ids, str):
+            gpu_ids = [gpu_ids] if gpu_ids else []
+            
+        self.device = torch.device(f'cuda:{gpu_ids[0]}' if gpu_ids else 'cpu')
+        
+        # Log device information
+        print(f"\nInitializing Enc_Dec_Network on device: {self.device}")
+        print(f"GPU IDs: {gpu_ids}")
+        print(f"Encoder device: {encoder.device}")
+        print(f"Decoder device: {decoder.device}")
 
     def set_input(self, input, target, convert_enc=True, shuffle_channel=True):
         self.input = input.to(self.device)
@@ -77,8 +99,21 @@ Class Definition for the final DLoc architecture with
 '''
 class Enc_2Dec_Network():
 
-    def initialize(self, opt , encoder, decoder, offset_decoder, frozen_dec=False, frozen_enc=False, gpu_ids='1'):
-        print('initializing Encoder and 2 Decoders Model')
+    # def initialize(self, opt , encoder, decoder, offset_decoder, frozen_dec=False, frozen_enc=False, gpu_ids='1'):
+    #     print('initializing Encoder and 2 Decoders Model')
+    #     self.opt = opt
+    #     self.isTrain = opt.isTrain      
+    #     self.encoder = encoder
+    #     self.decoder = decoder
+    #     self.offset_decoder = offset_decoder
+    #     self.frozen_dec = frozen_dec
+    #     self.frozen_enc = frozen_enc
+    #     self.device = torch.device('cuda:{}'.format(gpu_ids[0])) # if self.gpu_ids else torch.device('cpu')
+    #     # self.encoder.net = encoder.net.to(self.device)
+    #     # self.decoder.net = decoder.net.to(self.device)
+    #     self.results_save_dir = opt.results_dir
+    def initialize(self, opt, encoder, decoder, offset_decoder, frozen_dec=False, frozen_enc=False, gpu_ids=None):
+        print('\nInitializing Encoder and 2 Decoders Model')
         self.opt = opt
         self.isTrain = opt.isTrain      
         self.encoder = encoder
@@ -86,10 +121,22 @@ class Enc_2Dec_Network():
         self.offset_decoder = offset_decoder
         self.frozen_dec = frozen_dec
         self.frozen_enc = frozen_enc
-        self.device = torch.device('cuda:{}'.format(gpu_ids[0])) # if self.gpu_ids else torch.device('cpu')
-        # self.encoder.net = encoder.net.to(self.device)
-        # self.decoder.net = decoder.net.to(self.device)
+        
+        # Handle GPU/CPU device assignment safely
+        if gpu_ids is None:
+            gpu_ids = []
+        elif isinstance(gpu_ids, str):
+            gpu_ids = [gpu_ids] if gpu_ids else []
+            
+        self.device = torch.device(f'cuda:{gpu_ids[0]}' if gpu_ids else 'cpu')
         self.results_save_dir = opt.results_dir
+        
+        # Log device information
+        print(f"Network device: {self.device}")
+        print(f"GPU IDs: {gpu_ids}")
+        print(f"Encoder device: {encoder.device}")
+        print(f"Decoder device: {decoder.device}")
+        print(f"Offset Decoder device: {offset_decoder.device}")
 
     def set_input(self, input, target ,offset_target ,convert_enc=True, shuffle_channel=True):
         # features_w_offset, labels_gaussian_2d, features_wo_offset
