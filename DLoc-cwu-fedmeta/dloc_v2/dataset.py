@@ -8,6 +8,7 @@ import numpy as np
 from typing import Union, List, Optional, Callable
 from utils.schema import DatasetKeys
 import os
+import pandas as pd
 
 class DLocDatasetV2(Dataset):
     """Dataset class for DLocV2 dataset."""
@@ -37,26 +38,19 @@ class DLocDatasetV2(Dataset):
             location_label: Location ground truth of the signal. Shape is (2,) representing (x, y).
         """
         data_path = self.data_files_list[idx]
+        df = pd.read_parquet(data_path)
+        # Assuming that each parquet file contains a single sample,
+        # we take the first row.
+        row = df.iloc[0]
+        features_2d_np = np.array(row[DatasetKeys.FEATURES_2D.value], dtype=np.float32)
+        # If needed, perform the same transpose and squeeze operations as before:
+        features_2d_np = np.transpose(features_2d_np).squeeze()
+        aoa_label_np = np.array(row[DatasetKeys.AOA_GT_LABEL.value], dtype=np.float32).squeeze()
+        location_label_np = np.array(row[DatasetKeys.LOCATION_GT_LABEL.value], dtype=np.float32).squeeze()
 
-        with h5py.File(data_path, "r") as f:
-            # features_2d.shape = (4, 315, 401)
-            features_2d_np = np.transpose(np.array(f.get(DatasetKeys.FEATURES_2D.value), dtype=np.float32)).squeeze()
-
-            # aoa_gnd.shape = (4,)
-            aoa_label_np = np.array(f.get(DatasetKeys.AOA_GT_LABEL.value), dtype=np.float32).squeeze()
-
-            # xy_label_np.shape = (2,)
-            location_label_np = np.array(f.get(DatasetKeys.LOCATION_GT_LABEL.value), dtype=np.float32).squeeze()
-
-        # Convert to torch Tensors
-
-        # 2D fft plot of CSI data. Shape is (n_ap, H, W)
+        # Convert to torch tensors
         features_2d = torch.tensor(features_2d_np)
-
-        # Angle of arrival ground truth of the signal. Shape is (n_ap,)
         aoa_label = torch.tensor(aoa_label_np)
-
-        # Location ground truth of the signal. Shape is (2,) representing (x, y)
         location_label = torch.tensor(location_label_np)
 
         if self.transform:

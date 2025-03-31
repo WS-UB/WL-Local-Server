@@ -6,7 +6,7 @@ import h5py
 import numpy as np
 from utils.schema import DatasetKeys
 
-def list_and_sort_files(directory: str, extension: str = ".h5") -> List[str]:
+def list_and_sort_files(directory: str, extension: str = ".parquet") -> List[str]:
     """list and sort files based on their filenames.
 
     Args:
@@ -39,10 +39,12 @@ def get_xy_label_from_file(file_path: str) -> np.ndarray:
     Returns:
         xy labels, shape (2,)
     """
-    with h5py.File(file_path, 'r') as f:
-        # xy_label_np.shape = (2,)
-        location_label_np = np.array(f.get(DatasetKeys.LOCATION_GT_LABEL.value), dtype=np.float32).squeeze()
+    import pandas as pd
+    df = pd.read_parquet(file_path)
+    row = df.iloc[0]
+    location_label_np = np.array(row[DatasetKeys.LOCATION_GT_LABEL.value], dtype=np.float32).squeeze()
     return location_label_np
+
 
 
 def partition_points_into_n_by_n_grid_cells(points_data: np.ndarray, n: int) -> list:
