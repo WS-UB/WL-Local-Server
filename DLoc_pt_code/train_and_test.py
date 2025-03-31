@@ -188,7 +188,7 @@ elif opt_exp.n_decoders == 1:
 
 else:
     print('Incorrect number of Decoders specified in the parameters')
-    return -1
+    raise -1
 
 if opt_exp.isFrozen:
     enc_model.load_networks(opt_encoder.starting_epoch_count)
@@ -215,12 +215,3 @@ if opt_exp.n_decoders == 2:
     joint_model.initialize(opt_exp, enc_model, dec_model, offset_dec_model, gpu_ids = opt_exp.gpu_ids)
 elif opt_exp.n_decoders == 1:
     joint_model.initialize(opt_exp, enc_model, dec_model, gpu_ids = opt_exp.gpu_ids)
-
-# pass data through model
-total_loss, median_error = trainer.test(joint_model, 
-    test_loader, 
-    save_output=True,
-    save_dir=eval_name,
-    save_name=f"decoder_test_result_epoch_{epoch}",
-    log=False)
-print(f"total_loss: {total_loss}, median_error: {median_error}")

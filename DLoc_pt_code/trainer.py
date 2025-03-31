@@ -134,8 +134,8 @@ def test(model, test_loader, save_output=True, save_name="decoder_test_result", 
     for i, data in enumerate(test_loader):
         if opt_exp.n_decoders == 2:
                 model.set_input(data[input_index], data[output_index], data[offset_output_index], shuffle_channel=False)
-            elif opt_exp.n_decoders == 1:
-                model.set_input(data[input_index], data[output_index], shuffle_channel=False)
+        elif opt_exp.n_decoders == 1:
+            model.set_input(data[input_index], data[output_index], shuffle_channel=False)
         model.test()
 
         # get model outputs
