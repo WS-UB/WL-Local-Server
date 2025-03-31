@@ -56,11 +56,11 @@ def load_data(filename):
         raise
 
 # For testing the loader directly
-if __name__ == "__main__":
-    try:
-        wo, w, lbl = load_data('./data/1.h5')
-        print("\nSample features_wo_offset:", wo[0])
-        print("Sample features_w_offset:", w[0])
-        print("Sample labels:", lbl[0])
-    except Exception as e:
-        print(f"Test failed: {str(e)}")
+# if __name__ == "__main__":
+#     try:
+#         wo, w, lbl = load_data('./data/1.h5')
+#         print("\nSample features_wo_offset:", wo[0])
+#         print("Sample features_w_offset:", w[0])
+#         print("Sample labels:", lbl[0])
+#     except Exception as e:
+#         print(f"Test failed: {str(e)}")

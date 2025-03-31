@@ -26,24 +26,34 @@ Defining the paths from where to Load Data.
 Assumes that the data is stored in a subfolder called data in the current data folder
 '''
 
-#####################################Final Simple Space Results################################################
 if "data" in opt_exp and opt_exp.data == "rw_to_rw_atk":
-    # Training and testing data loaded for the Final results For Env-1 (The smaller space) in the paper (Figure 10a)
-    trainpath = ['./data/dataset_non_fov_train_July18.mat',
-                './data/dataset_fov_train_July18.mat']
-    testpath = ['./data/dataset_non_fov_test_July18.mat',
-                './data/dataset_fov_test_July18.mat']
-    print('Real World to Real World experiments started')
+    trainpath = ['./data/1.h5']  # Example paths - update with your actual files
+    testpath = ['./data/2.h5']   # Example test file
+    print('Running with new data format')
+
+elif "data" in opt_exp and opt_exp.data == "rw_to_rw":
+    trainpath = ['./data/3.h5', './data/4.h5']  # Multi-file example
+    testpath = ['./data/5.h5']
+    print('Running with new data format')
+
+#####################################Final Simple Space Results################################################
+# if "data" in opt_exp and opt_exp.data == "rw_to_rw_atk":
+#     # Training and testing data loaded for the Final results For Env-1 (The smaller space) in the paper (Figure 10a)
+#     trainpath = ['./data/dataset_non_fov_train_July18.mat',
+#                 './data/dataset_fov_train_July18.mat']
+#     testpath = ['./data/dataset_non_fov_test_July18.mat',
+#                 './data/dataset_fov_test_July18.mat']
+#     print('Real World to Real World experiments started')
 
 #####################################Final Complex Space Results################################################
-elif "data" in opt_exp and opt_exp.data == "rw_to_rw":
-    # Training and testing data loaded for the Final results For Env-2 (The larger space) in the paper (Figure 10b)
-    trainpath = ['./data/dataset_jacobs_July28.mat',
-                './data/dataset_non_fov_train_jacobs_July28_2.mat',
-                './data/dataset_fov_train_jacobs_July28_2.mat']
-    testpath = ['./data/dataset_fov_test_jacobs_July28_2.mat',
-                './data/dataset_non_fov_test_jacobs_July28_2.mat']
-    print('Real World to Real World experiments started')
+# elif "data" in opt_exp and opt_exp.data == "rw_to_rw":
+#     # Training and testing data loaded for the Final results For Env-2 (The larger space) in the paper (Figure 10b)
+#     trainpath = ['./data/dataset_jacobs_July28.mat',
+#                 './data/dataset_non_fov_train_jacobs_July28_2.mat',
+#                 './data/dataset_fov_train_jacobs_July28_2.mat']
+#     testpath = ['./data/dataset_fov_test_jacobs_July28_2.mat',
+#                 './data/dataset_non_fov_test_jacobs_July28_2.mat']
+#     print('Real World to Real World experiments started')
 
 #########################################Generalization across Scenarios###########################################
 
@@ -117,6 +127,7 @@ elif "data" in opt_exp and opt_exp.data == "data_segment":
 Loading Training and Evaluation Data into their respective Dataloaders
 '''
 # load traning data
+print('\nLoading Training Data')
 B_train,A_train,labels_train = load_data(trainpath[0])
 
 for i in range(len(trainpath)-1):
@@ -126,6 +137,10 @@ for i in range(len(trainpath)-1):
     labels_train = torch.cat((labels_train, l), 0)
 
 labels_train = torch.unsqueeze(labels_train, 1)
+print(f"\nFinal training shapes:")
+print(f"B_train: {B_train.shape} (features_wo_offset)")
+print(f"A_train: {A_train.shape} (features_w_offset)")
+print(f"Labels: {labels_train.shape}")
 
 train_data = torch.utils.data.TensorDataset(B_train, A_train, labels_train)
 train_loader =torch.utils.data.DataLoader(train_data, batch_size=opt_exp.batch_size, shuffle=True)
@@ -136,6 +151,7 @@ print(f"labels_train.shape: {labels_train.shape}")
 print('# training mini batch = %d' % len(train_loader))
 
 # load testing data
+print('\nLoading Testing Data')
 B_test,A_test,labels_test = load_data(testpath[0])
 
 for i in range(len(testpath)-1):
@@ -146,6 +162,12 @@ for i in range(len(testpath)-1):
 
 labels_test = torch.unsqueeze(labels_test, 1)
 
+labels_test = labels_test.unsqueeze(1)
+print(f"\nFinal testing shapes:")
+print(f"B_test: {B_test.shape}")
+print(f"A_test: {A_test.shape}")
+print(f"Labels: {labels_test.shape}")
+
 # create data loader
 test_data = torch.utils.data.TensorDataset(B_test, A_test, labels_test)
 test_loader =torch.utils.data.DataLoader(test_data, batch_size=opt_exp.batch_size, shuffle=False)
@@ -154,6 +176,24 @@ print(f"B_test.shape: {B_test.shape}")
 print(f"labels_test.shape: {labels_test.shape}")
 print('# testing mini batch = %d' % len(test_loader))
 print('Test Data Loaded')
+
+
+'''
+Updated training script with GPU safety checks
+'''
+import torch
+print("\n=== GPU/CPU Configuration ===")
+print(f"PyTorch version: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    print(f"GPU devices detected: {torch.cuda.device_count()}")
+    for i in range(torch.cuda.device_count()):
+        print(f"Device {i}: {torch.cuda.get_device_name(i)}")
+else:
+    print("Warning: No GPU detected, falling back to CPU")
+
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"CUDA device count: {torch.cuda.device_count()}")
 
 '''
 Initiate the Network and build the graph
@@ -215,3 +255,5 @@ if opt_exp.n_decoders == 2:
     joint_model.initialize(opt_exp, enc_model, dec_model, offset_dec_model, gpu_ids = opt_exp.gpu_ids)
 elif opt_exp.n_decoders == 1:
     joint_model.initialize(opt_exp, enc_model, dec_model, gpu_ids = opt_exp.gpu_ids)
+
+print('Model loaded')   

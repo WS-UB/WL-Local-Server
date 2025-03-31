@@ -16,21 +16,26 @@ class ModelADT():
         return 'Pix2PixModel'
 
     def initialize(self, opt):
-        
         self.opt = opt
-#        self.gpu_ids = opt.gpu_ids
-        gpu_ids = []
-        for i in range(torch.cuda.device_count()):
-            gpu_ids.append(str(i))
-        print(gpu_ids)
-        self.gpu_ids = gpu_ids
+        self.gpu_ids = []
+        
+        # Automatically detect available GPUs
+        if torch.cuda.is_available():
+            self.gpu_ids = [str(i) for i in range(torch.cuda.device_count())]
+            print(f"Detected GPUs: {self.gpu_ids}")
+        else:
+            print("No GPUs available, falling back to CPU")
+        
         self.isTrain = opt.isTrain
         self.loss_weight = opt.lambda_L
         self.reg_loss_weight = opt.lambda_reg
         self.cross_loss_weight = opt.lambda_cross
-        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) # if self.gpu_ids else torch.device('cpu')
         
-        print(self.device)
+        # Safe device assignment
+        self.device = torch.device(f'cuda:{self.gpu_ids[0]}' if self.gpu_ids else 'cpu')
+        print(f"Using device: {self.device}")
+        
+        # Rest of the initialization remains the same...
         self.model_name = self.opt.name
         self.save_dir = os.path.join(self.opt.checkpoints_save_dir, self.model_name)
         self.load_dir = os.path.join(self.opt.checkpoints_load_dir, self.model_name)

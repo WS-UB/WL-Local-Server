@@ -5,6 +5,7 @@ the networks, models, logs and results
 '''
 from easydict import EasyDict as edict
 import time
+import torch
 from os.path import join
 opt_exp = edict()
 
@@ -15,7 +16,8 @@ opt_exp.starting_epoch_count = 0 #type=int, default=1, help='the starting epoch 
 opt_exp.save_latest_freq = 5000 #type=int, default=5000, help='frequency of saving the latest results')
 opt_exp.save_epoch_freq = 1 #type=int, default=5, help='frequency of saving checkpoints at the end of epochs')
 opt_exp.n_epochs = 50 #type=int, default=50, help='# of Epochs to run the training for')
-opt_exp.gpu_ids = ['1','2','3','0'] #type=tuple of char, default=['1','2','3','0'], help='gpu ids: e.g. ['0']  ['0','1','2'], ['0','2']. CPU implementation is not supported. gpu_ids[0] is used for loading the network and the rest for DataParellilization')
+# opt_exp.gpu_ids = ['1','2','3','0'] #type=tuple of char, default=['1','2','3','0'], help='gpu ids: e.g. ['0']  ['0','1','2'], ['0','2']. CPU implementation is not supported. gpu_ids[0] is used for loading the network and the rest for DataParellilization')
+opt_exp.gpu_ids = [str(i) for i in range(torch.cuda.device_count())] if torch.cuda.is_available() else []
 opt_exp.data = "rw_to_rw" #type=str, default='rw_to_rw', help='Dataset loader, switch case system [rw_to_rw|rw_to_rw_atk|rw_to_rw_env2|rw_to_rw_env3|rw_to_rw_env4|rw_to_rw_40|rw_to_rw_20|data_segment]')
 opt_exp.n_decoders = 2 #type=int, default=2, help='# of Decoders to be used [1:Only Location Decoder|2:Both Location and Consistency Decoder]')
 
