@@ -1,66 +1,102 @@
-#!/usr/bin/python
-"""
-Modified data loader for DLoc network that adapts to the new dataset structure
-while maintaining compatibility with train_and_test.py
+"""Dataset class for DLocV2 dataset. Load aoa-tof plots and groundtruth labels."""
 
-Input: HDF5 file with different field names
-Output: features_wo_offset, features_w_offset, labels_gaussian_2d tensors
-"""
 import torch
+from torch.utils.data import Dataset
+from utils.data_utils import list_and_sort_files
 import h5py
 import numpy as np
+from typing import Union, List, Optional, Callable
+from utils.schema import DatasetKeys
+import os
 
-def load_data(filename):
-    """
-    Load data from HDF5 file and convert to DLoc-compatible format
-    
-    Args:
-        filename (str): Path to HDF5 file
-        
-    Returns:
-        tuple: (features_wo_offset, features_w_offset, labels_gaussian_2d) as torch.Tensor
-    """
-    print(f'Loading {filename}')
-    
-    try:
-        with h5py.File(filename, 'r') as f:
-            # Extract and process features
-            features_2d = np.array(f['features_2d'], dtype=np.float32)
-            features_2d_spotfi = np.array(f['features_2d_spotfi'], dtype=np.float32)
-            labels = np.array(f['labels'], dtype=np.float32)
-            
-            # Reshape features to expected format
-            # Original: (N, C) where N is samples, C is channels
-            # Current: (401, 315, 4, 1) - assuming 401 samples, 315 timesteps?
-            # We'll take mean across timesteps (axis=1) and remove last dimension
-            features_2d = np.squeeze(np.mean(features_2d, axis=1))
-            features_2d_spotfi = np.squeeze(np.mean(features_2d_spotfi, axis=1))
-            
-            # Convert labels to 2D Gaussian format
-            # Original expects (N, 2) shape
-            labels_gaussian = np.tile(labels.T, (features_2d.shape[0], 1))
-            
-            # Create torch tensors
-            features_wo_offset = torch.tensor(features_2d, dtype=torch.float32)
-            features_w_offset = torch.tensor(features_2d_spotfi, dtype=torch.float32)
-            labels_gaussian_2d = torch.tensor(labels_gaussian, dtype=torch.float32)
-            
-            print(f"Loaded shapes - wo_offset: {features_wo_offset.shape}, "
-                  f"w_offset: {features_w_offset.shape}, "
-                  f"labels: {labels_gaussian_2d.shape}")
-            
-            return features_wo_offset, features_w_offset, labels_gaussian_2d
-            
-    except Exception as e:
-        print(f"Error loading {filename}: {str(e)}")
-        raise
+class DLocDatasetV2(Dataset):
+    """Dataset class for DLocV2 dataset."""
+    def __init__(self, data_file_csv: str, transform: Optional[Callable] = None):
+        """Constructor for DLocDatasetV2.
 
-# For testing the loader directly
-# if __name__ == "__main__":
-#     try:
-#         wo, w, lbl = load_data('./data/1.h5')
-#         print("\nSample features_wo_offset:", wo[0])
-#         print("Sample features_w_offset:", w[0])
-#         print("Sample labels:", lbl[0])
-#     except Exception as e:
-#         print(f"Test failed: {str(e)}")
+        Args:
+            data_file_csv: Path to the csv file containing the data files.
+            transform: Torch transform to transform aoa-tof plot. Defaults to None.
+        """
+        self.data_files_list = self._get_all_data_from_csv(data_file_csv)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.data_files_list)
+
+    def __getitem__(self, idx: int):
+        """Return data and ground truth given an index.
+
+        Args:
+            idx: Index to get data and ground truth.
+
+        Returns:
+            A tuple of (features_2d, aoa_label, location_label).
+            features_2d: 2D fft plot of CSI data. Shape is (n_ap, H, W).
+            aoa_label: Angle of arrival ground truth of the signal. Shape is (n_ap,).
+            location_label: Location ground truth of the signal. Shape is (2,) representing (x, y).
+        """
+        data_path = self.data_files_list[idx]
+
+        with h5py.File(data_path, "r") as f:
+            # features_2d.shape = (4, 315, 401)
+            features_2d_np = np.transpose(np.array(f.get(DatasetKeys.FEATURES_2D.value), dtype=np.float32)).squeeze()
+
+            # aoa_gnd.shape = (4,)
+            aoa_label_np = np.array(f.get(DatasetKeys.AOA_GT_LABEL.value), dtype=np.float32).squeeze()
+
+            # xy_label_np.shape = (2,)
+            location_label_np = np.array(f.get(DatasetKeys.LOCATION_GT_LABEL.value), dtype=np.float32).squeeze()
+
+        # Convert to torch Tensors
+
+        # 2D fft plot of CSI data. Shape is (n_ap, H, W)
+        features_2d = torch.tensor(features_2d_np)
+
+        # Angle of arrival ground truth of the signal. Shape is (n_ap,)
+        aoa_label = torch.tensor(aoa_label_np)
+
+        # Location ground truth of the signal. Shape is (2,) representing (x, y)
+        location_label = torch.tensor(location_label_np)
+
+        if self.transform:
+            features_2d = self.transform(features_2d)
+
+        return features_2d, aoa_label, location_label
+
+    def _get_all_data_from_directory(self, data_paths: Union[List[str], str]) -> List[str]:
+        """Get all data files from the given data paths.
+
+        Args:
+            data_paths: List of data directories that contain individual data files. Can also be a single data directory.
+
+        Returns:
+            A list containing absolute paths to all data files sorted by their filenames.
+        """
+        if isinstance(data_paths, str):
+            return list_and_sort_files(data_paths)
+
+        data_files_list = []
+        for data_path in set(data_paths):
+            data_files_list += list_and_sort_files(data_path)
+
+        return data_files_list
+
+    def _get_all_data_from_csv(self, data_file_csv: str) -> List[str]:
+        """Get all data files from the given csv file.
+
+        Args:
+            data_file_csv: Path to the csv file containing the data files.
+
+        Returns:
+            A list containing absolute paths to all data files sorted by their filenames.
+        """
+        assert os.path.exists(data_file_csv), f"Data file csv {data_file_csv} does not exist."
+
+        with open(data_file_csv, "r") as f:
+            data_files_list = [line.strip() for line in f.readlines()]
+
+        if len(data_files_list) == 0:
+            raise ValueError(f"No data files found in {data_file_csv}.")
+
+        return data_files_list
