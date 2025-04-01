@@ -1,96 +1,88 @@
-"""Dataset class for DLocV2 dataset. Load aoa-tof plots and groundtruth labels."""
+"""Dataset class for Parquet files containing CSI and GPS data."""
 
 import torch
 from torch.utils.data import Dataset
-from utils.data_utils import list_and_sort_files
-import h5py
 import numpy as np
-from typing import Union, List, Optional, Callable
-from utils.schema import DatasetKeys
+from typing import Optional, Callable
 import os
 import pandas as pd
+import json
 
 class DLocDatasetV2(Dataset):
-    """Dataset class for DLocV2 dataset."""
-    def __init__(self, data_file_csv: str, transform: Optional[Callable] = None):
-        """Constructor for DLocDatasetV2.
+    """Dataset class for Parquet files containing CSI and GPS data."""
+    
+    def __init__(self, parquet_file_path: str, transform: Optional[Callable] = None):
+        """Constructor for CSIGPSDataset.
 
         Args:
-            data_file_csv: Path to the csv file containing the data files.
-            transform: Torch transform to transform aoa-tof plot. Defaults to None.
+            parquet_file_path: Path to the parquet file containing the data.
+            transform: Optional transform to be applied to the CSI data. Defaults to None.
         """
-        self.data_files_list = self._get_all_data_from_csv(data_file_csv)
+        self.df = pd.read_parquet(parquet_file_path)
         self.transform = transform
-
+        
     def __len__(self):
-        return len(self.data_files_list)
-
+        return len(self.df)
+    
     def __getitem__(self, idx: int):
-        """Return data and ground truth given an index.
+        """Return CSI and GPS data given an index.
 
         Args:
-            idx: Index to get data and ground truth.
+            idx: Index to get data.
 
         Returns:
-            A tuple of (features_2d, aoa_label, location_label).
-            features_2d: 2D fft plot of CSI data. Shape is (n_ap, H, W).
-            aoa_label: Angle of arrival ground truth of the signal. Shape is (n_ap,).
-            location_label: Location ground truth of the signal. Shape is (2,) representing (x, y).
+            A tuple of (csi_data, gps_data).
+            csi_data: Complex CSI data. Shape is (n_subcarriers,).
+            gps_data: GPS coordinates. Shape is (2,) representing (latitude, longitude).
         """
-        data_path = self.data_files_list[idx]
-        df = pd.read_parquet(data_path)
-        # Assuming that each parquet file contains a single sample,
-        # we take the first row.
-        row = df.iloc[0]
-        features_2d_np = np.array(row[DatasetKeys.FEATURES_2D.value], dtype=np.float32)
-        # If needed, perform the same transpose and squeeze operations as before:
-        features_2d_np = np.transpose(features_2d_np).squeeze()
-        aoa_label_np = np.array(row[DatasetKeys.AOA_GT_LABEL.value], dtype=np.float32).squeeze()
-        location_label_np = np.array(row[DatasetKeys.LOCATION_GT_LABEL.value], dtype=np.float32).squeeze()
-
+        row = self.df.iloc[idx]
+        
+        # Parse WiFi data which contains CSI
+        wifi_data = json.loads(row['WiFi'])
+        csi_real = np.array(wifi_data['csi_real'], dtype=np.float32)
+        csi_imag = np.array(wifi_data['csi_imag'], dtype=np.float32)
+        csi_complex = csi_real + 1j * csi_imag
+        
+        # Parse GPS data
+        gps_data = json.loads(row['GPS'])
+        gps_coords = np.array([gps_data['latitude'], gps_data['longitude']], dtype=np.float32)
+        
         # Convert to torch tensors
-        features_2d = torch.tensor(features_2d_np)
-        aoa_label = torch.tensor(aoa_label_np)
-        location_label = torch.tensor(location_label_np)
-
+        csi_tensor = torch.from_numpy(csi_complex)
+        gps_tensor = torch.from_numpy(gps_coords)
+        
         if self.transform:
-            features_2d = self.transform(features_2d)
+            csi_tensor = self.transform(csi_tensor)
+            
+        return csi_tensor, gps_tensor
 
-        return features_2d, aoa_label, location_label
-
-    def _get_all_data_from_directory(self, data_paths: Union[List[str], str]) -> List[str]:
-        """Get all data files from the given data paths.
-
+    @staticmethod
+    def process_parquet_file(parquet_file_path: str):
+        """Process a parquet file and return all CSI and GPS data.
+        
         Args:
-            data_paths: List of data directories that contain individual data files. Can also be a single data directory.
-
+            parquet_file_path: Path to the parquet file.
+            
         Returns:
-            A list containing absolute paths to all data files sorted by their filenames.
+            A tuple of (all_csi, all_gps).
+            all_csi: List of all CSI data arrays.
+            all_gps: List of all GPS coordinate arrays.
         """
-        if isinstance(data_paths, str):
-            return list_and_sort_files(data_paths)
-
-        data_files_list = []
-        for data_path in set(data_paths):
-            data_files_list += list_and_sort_files(data_path)
-
-        return data_files_list
-
-    def _get_all_data_from_csv(self, data_file_csv: str) -> List[str]:
-        """Get all data files from the given csv file.
-
-        Args:
-            data_file_csv: Path to the csv file containing the data files.
-
-        Returns:
-            A list containing absolute paths to all data files sorted by their filenames.
-        """
-        assert os.path.exists(data_file_csv), f"Data file csv {data_file_csv} does not exist."
-
-        with open(data_file_csv, "r") as f:
-            data_files_list = [line.strip() for line in f.readlines()]
-
-        if len(data_files_list) == 0:
-            raise ValueError(f"No data files found in {data_file_csv}.")
-
-        return data_files_list
+        df = pd.read_parquet(parquet_file_path)
+        all_csi = []
+        all_gps = []
+        
+        for _, row in df.iterrows():
+            # Parse WiFi data which contains CSI
+            wifi_data = json.loads(row['WiFi'])
+            csi_real = np.array(wifi_data['csi_real'], dtype=np.float32)
+            csi_imag = np.array(wifi_data['csi_imag'], dtype=np.float32)
+            csi_complex = csi_real + 1j * csi_imag
+            all_csi.append(csi_complex)
+            
+            # Parse GPS data
+            gps_data = json.loads(row['GPS'])
+            gps_coords = np.array([gps_data['latitude'], gps_data['longitude']], dtype=np.float32)
+            all_gps.append(gps_coords)
+            
+        return all_csi, all_gps
