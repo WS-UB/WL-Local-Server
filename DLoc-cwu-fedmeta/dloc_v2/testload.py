@@ -49,8 +49,8 @@ def parquet_to_txt(input_path, output_path=None, max_rows=None):
         return None
 
 # Usage example
-input_file = "./data/sample.parquet"  # Replace with your Parquet file path
-output_file = "./data/output_data.txt"  # Optional - will auto-generate if None
+input_file = "./data/1.parquet"  # Replace with your Parquet file path
+output_file = "./data/1.txt"  # Optional - will auto-generate if None
 
 result_path = parquet_to_txt(input_file, output_file)
 if result_path:
