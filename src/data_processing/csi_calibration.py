@@ -16,10 +16,13 @@ from src.data_processing.constants import subcarrier_indices
 from src.data_processing.pipeline_utils import extract_csi
 
 AP_NAMES = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
+
+BW = 80e6
 DISTANCES = np.arange(0, 40, 0.1)
 ANGLES = np.arange(-90, 90, 0.5)
 FREQ = 5.8e9  # WiFi at 5.8 GHz
 C = 3e8  # Speed of light
+N_Rx = 4
 WAVELENGTH = C / FREQ
 d = WAVELENGTH / 2  # Antenna spacing
 OUT = os.getcwd()
@@ -73,7 +76,7 @@ def retrieve_csi(bucket_name="wl-data"):
                         [float(x) for x in csi_data[ap_name][1]]
                     ).flatten()
 
-                    calibrate_csi(csi_i_flattened, csi_r_flattened)
+                    calibrate_csi(ap_name, csi_i_flattened, csi_r_flattened)
 
 
 # def omit_frequencies(csi_i, csi_r, bw):
@@ -96,43 +99,65 @@ def retrieve_csi(bucket_name="wl-data"):
 
 
 def calibrate_csi(
-    csi_i: list[float], csi_r: list[float], csi_compensated: list[float] = None
+    ap_name, csi_i: list[float], csi_r: list[float], csi_compensated: list[float] = None
 ):
-    csi_complex = extract_csi(80, csi_i=csi_i, csi_r=csi_r, valid_tx=0, apply_nts=False)
+    csi_complex = extract_csi(80, csi_i=csi_i, csi_r=csi_r, apply_nts=True)[:, :, 0]
+
     # Hcomp = csi_complex
     # np.save(join(OUT, f"comp-{random.randint(1, 10)}.npy"), Hcomp)
-    print(f"Complex CSI: {csi_complex}")
+    print(f"Complex CSI: {csi_complex.shape}")
 
-    csi_padded = np.zeros((400, 4), dtype=np.complex128)
-    csi_padded[:234, :] = csi_complex.reshape(
-        234, 4
-    )  # Copy existing CSI data, pad the rest with zeros
+    fs = 8e6  # ADC sampling frequency in Hz
+    N_samples = 234  # Number of samples per chirp
+    k = BW / 0.8e-6  # Slope (Hz/s)
+    print(k)
 
-    csi_distance = np.fft.ifft(csi_padded, axis=0)
-    csi_distance = np.abs(csi_distance)
+    # Time and frequency axes
+    Ts = 1 / fs  # Sampling period
+    t = np.arange(0, N_samples) * Ts  # Time axis
+    delta_freqs = np.arange(0, fs, fs / N_samples)  # Frequency axis
+    delta_est = delta_freqs / k  # Slope-based estimation
+    distance_range = delta_est * C  # Convert to distance
 
-    k = 2 * np.pi / WAVELENGTH  # Wavenumber
+    rangeFFT = np.fft.fft(csi_complex, 234, 0)
 
-    # Create a steering matrix that explicitly maps to the 360 angles
-    steering_matrix = np.exp(
-        1j * k * d * np.outer(np.arange(4),s np.sin(np.radians(ANGLES)))
+    plt.figure(1)
+    plt.plot(distance_range, np.abs(rangeFFT))
+    plt.xlabel("Distance (m)")
+    plt.ylabel("Amplitude")
+    plt.title(f"Range FFT for {ap_name}")
+    plt.grid(True)
+    plt.show()
+
+    exponent_AoA = np.exp(
+        (1j * 2 * np.pi * FREQ * d / C)
+        * np.arange(1, N_Rx + 1)[:, None]
+        * np.sin(np.radians(ANGLES))
     )
 
-    csi_angle = np.dot(csi_distance, steering_matrix)  # (400, 360)
+    AoARangeFFT = rangeFFT @ exponent_AoA
 
-    heatmap = np.abs(np.fft.fftshift(np.fft.fft2(csi_angle, s=(400, 360))))
-
-    print(f"FFT: {heatmap}")
-
-    plt.figure(figsize=(10, 6))
-
+    plt.figure(2)
     plt.imshow(
-        heatmap, aspect="auto", extent=[-90, 90, 0, 40], origin="lower", cmap="jet"
+        np.abs(AoARangeFFT).T,
+        aspect="auto",
+        extent=[
+            distance_range.min(),
+            distance_range.max(),
+            ANGLES.min(),
+            ANGLES.max(),
+        ],
+        origin="lower",
     )
-    plt.colorbar(label="Amplitude")
-    plt.xlabel("Angle (degrees)")
-    plt.ylabel("Distance (m)")
-    plt.title("CSI 2D Fourier Transform Heatmap")
+
+    # Labels and title
+    plt.xlabel("Range (m)")
+    plt.ylabel("AoA (°)")
+    plt.title("AoA vs Range Heatmap")
+
+    # Colorbar for scale
+    plt.colorbar(label="Magnitude")
+
     plt.show()
 
 
