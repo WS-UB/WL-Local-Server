@@ -5,6 +5,9 @@ from typing import Optional, Callable
 import pandas as pd
 import json
 import re
+import os
+from minio import Minio
+from io import BytesIO
 
 class DLocDatasetV2(Dataset):
     def __init__(self, parquet_file_path: str, transform: Optional[Callable] = None):
@@ -80,3 +83,52 @@ class DLocDatasetV2(Dataset):
             all_gps.append(gps_coords)
 
         return all_csi, all_gps
+    
+def fetch_selected_parquet_from_minio(bucket_name="wl-data"):
+    minio_client = Minio(
+        "128.205.218.189:9000",
+        access_key="admin",
+        secret_key="password",
+        secure=False,
+    )
+
+    folder = input("Enter MinIO folder name: ").strip()
+    prefix = f"{folder}/"
+    os.makedirs("data", exist_ok=True)
+
+    try:
+        objects = list(minio_client.list_objects(bucket_name, prefix=prefix, recursive=True))
+        parquet_files = [obj for obj in objects if obj.object_name.endswith(".parquet")]
+
+        if not parquet_files:
+            print("⚠️ No .parquet files found in that folder.")
+            return None
+
+        print("\n📄 Available .parquet files:")
+        for i, obj in enumerate(parquet_files):
+            print(f"[{i}] {obj.object_name}")
+
+        idx = int(input("\nSelect file index to download: ").strip())
+        selected_obj = parquet_files[idx]
+
+        print(f"\n📥 Downloading {selected_obj.object_name}")
+        response = minio_client.get_object(bucket_name, selected_obj.object_name)
+
+        local_filename = os.path.join("data", os.path.basename(selected_obj.object_name))
+        with open(local_filename, "wb") as f:
+            for chunk in response.stream(32 * 1024):
+                f.write(chunk)
+
+        print(f"✅ Saved to {local_filename}")
+        return local_filename
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return None
+
+# --- MAIN ENTRY ---
+if __name__ == "__main__":
+    path = fetch_selected_parquet_from_minio()
+    if path:
+        dataset = DLocDatasetV2(parquet_file_path=path)
+        print(f"✅ Loaded {len(dataset)} samples from {path}")
