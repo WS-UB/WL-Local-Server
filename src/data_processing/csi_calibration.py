@@ -1,26 +1,33 @@
 import numpy as np
+import scipy.io
 import sys
 import os
-from os.path import join
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 import json
-import random
 from minio import Minio
 from io import BytesIO
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 import matplotlib.pyplot as plt
-from src.data_processing.constants import subcarrier_indices
+from src.data_processing.constants import (
+    subcarrier_width,
+    get_channel_frequencies,
+)
+from src.minio_script import store_received_data
 from src.data_processing.pipeline_utils import extract_csi
 
 AP_NAMES = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
+COMPENSATION_FILES = {
+    "192.168.48.1": "src/data_processing/compensated_csi/48.1.mat",
+    "192.168.48.2": "src/data_processing/compensated_csi/48.2.mat",
+    "192.168.48.3": "src/data_processing/compensated_csi/48.3.mat",
+}
 
+SUBCARRIER_SPACING = subcarrier_width  # Subcarrier spacing (312.5 kHz)
 BW = 80e6
-DISTANCES = np.arange(0, 40, 0.1)
+DISTANCES = np.arange(-30, 30, 0.15)
 ANGLES = np.arange(-90, 90, 0.5)
-FREQ = 5.8e9  # WiFi at 5.8 GHz
+FREQ = 5e9  # WiFi at 5.8 GHz
 C = 3e8  # Speed of light
 N_Rx = 4
 WAVELENGTH = C / FREQ
@@ -63,12 +70,25 @@ def retrieve_csi(bucket_name="wl-data"):
             pd.set_option("display.max_colwidth", None)
             # json_data = data.to_json(991956470159_DC991956470159_DCorient="records", indent=4).replace("\\", "")
             # print(f"{json_data}\n")
+            user_id = data["user_id"][0]
+            timestamp = data["timestamp"][0]
+            imu = data["IMU"].apply(json.loads)
+            gps = data["GPS"].apply(json.loads)
             data["WiFi"] = data["WiFi"].apply(json.loads)
 
+            gyro_xyz = imu[0]["gyro"]
+            accel_xyz = imu[0]["accel"]
+            GPS_lat = gps[0]["latitude"]
+            GPS_long = gps[0]["longitude"]
+
             for wifi_data in data["WiFi"]:
+                heatmaps = []
                 csi_data = extract_csi_data(wifi_data)
-                print("\n")
                 for ap_name in AP_NAMES:
+                    rx_ip = wifi_data[ap_name][11].split(": ")[1]
+                    csi_compensatedRaw = scipy.io.loadmat(COMPENSATION_FILES[rx_ip])
+                    csi_compensated = np.array(csi_compensatedRaw["csi"])[0, :, :, :]
+
                     csi_i_flattened = np.array(
                         [float(x) for x in csi_data[ap_name][0]]
                     ).flatten()
@@ -76,74 +96,112 @@ def retrieve_csi(bucket_name="wl-data"):
                         [float(x) for x in csi_data[ap_name][1]]
                     ).flatten()
 
-                    calibrate_csi(ap_name, csi_i_flattened, csi_r_flattened)
+                    heatmap = calibrate_csi(
+                        ap_name,
+                        csi_i_flattened,
+                        csi_r_flattened,
+                        csi_compensated=csi_compensated,
+                    )
+                    heatmaps.append(heatmap)
+                    if len(heatmaps) == 3:
+                        send_heatmaps(
+                            user_id=user_id,
+                            timestamp=timestamp,
+                            gyro_xyz=gyro_xyz,
+                            accel_xyz=accel_xyz,
+                            GPS_lat=GPS_lat,
+                            GPS_long=GPS_long,
+                            heatmaps=heatmaps,
+                        )
+    return
 
 
-# def omit_frequencies(csi_i, csi_r, bw):
-#     # Check if bandwidth is valid
-#     if bw not in subcarrier_indices:
-#         print("Invalid bandwidth for OFDM")
-#         return None, None
-
-#     # Get the indices of subcarriers to keep
-#     keep_indices = np.in1d(np.arange(256), subcarrier_indices[bw])
-
-#     # Use the indices to select the data that should remain
-#     csi_i_filtered = csi_i[keep_indices]
-#     csi_r_filtered = csi_r[keep_indices]
-
-#     # print(f"Filtered csi_i size: {len(csi_i_filtered)}")
-#     # print(f"Filtered csi_r size: {len(csi_r_filtered)}")
-
-#     return csi_i_filtered, csi_r_filtered
+def send_heatmaps(user_id, timestamp, gyro_xyz, accel_xyz, GPS_lat, GPS_long, heatmaps):
+    user_data = json.dumps(
+        [
+            {
+                "user_id": f"{user_id}_HEATMAPS",
+                "timestamp": timestamp,
+                "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
+                "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
+                "WiFi": {
+                    "WiFi-AP-1_HEATMAP": heatmaps[0],
+                    "WiFi-AP-2_HEATMAP": heatmaps[1],
+                    "WiFi-AP-3_HEATMAP": heatmaps[2],
+                },
+            }
+        ],
+    )
+    store_received_data(user_data)
 
 
 def calibrate_csi(
     ap_name, csi_i: list[float], csi_r: list[float], csi_compensated: list[float] = None
 ):
-    csi_complex = extract_csi(80, csi_i=csi_i, csi_r=csi_r, apply_nts=True)[:, :, 0]
+    csi_complex = extract_csi(
+        80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=csi_compensated
+    )[:, :, 0]
 
     # Hcomp = csi_complex
     # np.save(join(OUT, f"comp-{random.randint(1, 10)}.npy"), Hcomp)
-    print(f"Complex CSI: {csi_complex.shape}")
 
     fs = 8e6  # ADC sampling frequency in Hz
-    N_samples = 234  # Number of samples per chirp
-    k = BW / 0.8e-6  # Slope (Hz/s)
-    print(k)
+    N_subfrequencies = len(
+        get_channel_frequencies(155, 80e6)
+    )  # Number of samples per chirp
+    freqs_subcarriers = get_channel_frequencies(155, 80e6)
+    k = 2 * np.pi * np.mean(N_subfrequencies) / (C)  # Slope (Hz/s)
 
     # Time and frequency axes
     Ts = 1 / fs  # Sampling period
-    t = np.arange(0, N_samples) * Ts  # Time axis
-    delta_freqs = np.arange(0, fs, fs / N_samples)  # Frequency axis
+    t = np.arange(0, N_subfrequencies) * Ts  # Time axis
+    delta_freqs = np.arange(0, fs, fs / N_subfrequencies)  # Frequency axis
     delta_est = delta_freqs / k  # Slope-based estimation
-    distance_range = delta_est * C  # Convert to distance
+    # distance_range = delta_est * C  # Convert to distance
 
-    rangeFFT = np.fft.fft(csi_complex, 234, 0)
+    exponent_range = np.exp(
+        (
+            1j
+            * 2
+            * np.pi
+            * DISTANCES.reshape(400, 1)
+            @ freqs_subcarriers.reshape(234, 1).T
+            / C
+        )
+    )
 
+    rangeFFT = exponent_range @ csi_complex
+    exponent_AoA = np.exp(
+        (1j * 2 * np.pi * FREQ * d / C)
+        * np.arange(1, N_Rx + 1)[:, None]
+        @ np.sin(np.radians(ANGLES.reshape(360, 1))).T
+    )
+
+    AoARangeFFT = rangeFFT @ exponent_AoA  # 400x360 matrix
+    stringComplex = [
+        str(x) for x in AoARangeFFT.flatten().tolist()
+    ]  # Converts all complex numbers to strings, needs to be converted back when parsing
+    return stringComplex
+
+
+def plot_csiGraph(csiFFT, ap_name):
     plt.figure(1)
-    plt.plot(distance_range, np.abs(rangeFFT))
+    plt.plot(DISTANCES, np.abs(csiFFT))
     plt.xlabel("Distance (m)")
     plt.ylabel("Amplitude")
     plt.title(f"Range FFT for {ap_name}")
     plt.grid(True)
     plt.show()
 
-    exponent_AoA = np.exp(
-        (1j * 2 * np.pi * FREQ * d / C)
-        * np.arange(1, N_Rx + 1)[:, None]
-        * np.sin(np.radians(ANGLES))
-    )
 
-    AoARangeFFT = rangeFFT @ exponent_AoA
-
+def plot_heatmaps(heatmap):
     plt.figure(2)
     plt.imshow(
-        np.abs(AoARangeFFT).T,
+        np.abs(heatmap).T,
         aspect="auto",
         extent=[
-            distance_range.min(),
-            distance_range.max(),
+            DISTANCES.min(),
+            DISTANCES.max(),
             ANGLES.min(),
             ANGLES.max(),
         ],
