@@ -86,8 +86,12 @@ def retrieve_csi(bucket_name="wl-data"):
                 csi_data = extract_csi_data(wifi_data)
                 for ap_name in AP_NAMES:
                     rx_ip = wifi_data[ap_name][11].split(": ")[1]
-                    csi_compensatedRaw = scipy.io.loadmat(COMPENSATION_FILES[rx_ip])
-                    csi_compensated = np.array(csi_compensatedRaw["csi"])[0, :, :, :]
+                    csi_compensatedRaw = scipy.io.loadmat(
+                        COMPENSATION_FILES[rx_ip]
+                    )  # Load CSI compensation
+                    csi_compensated = np.array(csi_compensatedRaw["csi"])[
+                        0, :, :, :
+                    ]  # Reshape to 234x4x4
 
                     csi_i_flattened = np.array(
                         [float(x) for x in csi_data[ap_name][0]]
@@ -192,6 +196,7 @@ def plot_csiGraph(csiFFT, ap_name):
     plt.title(f"Range FFT for {ap_name}")
     plt.grid(True)
     plt.show()
+    return
 
 
 def plot_heatmaps(heatmap):
@@ -217,6 +222,7 @@ def plot_heatmaps(heatmap):
     plt.colorbar(label="Magnitude")
 
     plt.show()
+    return
 
 
 def main():
