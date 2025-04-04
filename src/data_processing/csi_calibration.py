@@ -7,6 +7,9 @@ from minio import Minio
 from io import BytesIO
 import pandas as pd
 import matplotlib.pyplot as plt
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+
 from src.data_processing.constants import (
     subcarrier_indices,
     subcarrier_width,
@@ -15,7 +18,6 @@ from src.data_processing.constants import (
 from src.minio_script import store_received_data
 from src.data_processing.pipeline_utils import extract_csi
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 AP_NAMES = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
@@ -232,9 +234,9 @@ def calibrate_csi(
     stringComplex = [
         str(x) for x in AoARangeFFT.flatten().tolist()
     ]  # Converts all complex numbers to strings, needs to be converted back when parsing
-    return stringComplex
-    # plot_csiGraph(rangeFFT, ap_name)
-    # plot_heatmaps(AoARangeFFT)
+    # return stringComplex
+    plot_csiGraph(rangeFFT, ap_name)
+    plot_heatmaps(AoARangeFFT)
 
 
 def plot_csiGraph(csiFFT, ap_name):

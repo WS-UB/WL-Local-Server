@@ -92,7 +92,9 @@ The script connects to an existing MinIO server located in the Wiloc SSH, sendin
 
 - [csi_calibration.py](/src/data_processing/csi_calibration.py): A python script that takes the name of a MinIO folder as user input, and parses the CSI Real and CSI Imaginary data within the given folder. The CSI data is then calibrated into 234x4 matrices, applying Fast Fourier Transformations to generate 400x360 heatmap matrices. These heatmaps are then sent back into the MinIO server for use in our machine learning model.
 
-- [constants.py](/src/data_processing/constants.py)
+- [constants.py](/src/data_processing/constants.py): A python script that contains subfrequency information based on the bandwidth of the WiFi CSI data being parsed. This file contains subfrequency information that is used to remove unnecessary subfreqeuncies from the CSI Imaginary and CSI Real data.
+
+- [pipeline_utils.py](/src/data_processing/pipeline_utils.py): A python script that contains helpful tools to parse and calibrate raw CSI data.
 
 ### Application Information:
 
@@ -177,3 +179,4 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 - [x] Retrieve and read the data from the given MinIO folder.
 - [x] Get the GPS Coordinates from the read parquet file and send it back to the MQTT broker.
 - [x] Retrieve data for specific key requested.
+- [x] CSI data can be calibrated and used to generate AoA heatmaps.
