@@ -183,7 +183,7 @@ class IMU_GPS_publisher:
         user_data = json.dumps(
             [
                 {
-                    "user_id": device_id,
+                    "user_id": f"debugging_{random.randint(1,1000)}",
                     "timestamp": data_timestamp,
                     "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
                     "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
