@@ -8,6 +8,9 @@ import re
 import os
 from minio import Minio
 from io import BytesIO
+from dotenv import load_dotenv
+
+
 
 class DLocDatasetV2(Dataset):
     def __init__(self, parquet_file_path: str, transform: Optional[Callable] = None):
@@ -84,13 +87,15 @@ class DLocDatasetV2(Dataset):
 
         return all_csi, all_gps
     
+
 def fetch_selected_parquet_from_minio(bucket_name="wl-data"):
+    load_dotenv()
     minio_client = Minio(
-        "128.205.218.189:9000",
-        access_key="admin",
-        secret_key="password",
-        secure=False,
-    )
+    os.getenv("MINIO_ENDPOINT"),
+    access_key=os.getenv("MINIO_ACCESS_KEY"),
+    secret_key=os.getenv("MINIO_SECRET_KEY"),
+    secure=os.getenv("MINIO_SECURE").lower() == 'true',
+)
 
     folder = input("Enter MinIO folder name: ").strip()
     prefix = f"{folder}/"
