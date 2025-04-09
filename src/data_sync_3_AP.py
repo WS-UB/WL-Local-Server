@@ -220,6 +220,9 @@ def get_WiFi_data(raw_data: str) -> list[str]:
     list_of_data = extract_lists(formatted_data)
     csi_real = f"csi_r: {list_of_data[1]}"
     csi_imag = f"csi_i: {list_of_data[2]}"
+    AP_Loc = f"AP Location: {list_of_data[3]}"
+    AP_L1 = f"AP L1: {list_of_data[4]}"
+    AP_L2 = f"AP L2: {list_of_data[5]}"
     data = remove_lists(formatted_data)
     wifi_timestamp = data[14].split(";")[1]
     rssi = data[1]
@@ -244,6 +247,9 @@ def get_WiFi_data(raw_data: str) -> list[str]:
         nrows,
         ncols,
         rx_id,
+        AP_Loc,
+        AP_L1,
+        AP_L2,
     ]
     return wiFiData
 

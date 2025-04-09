@@ -38,6 +38,20 @@ WAVELENGTH = C / FREQ
 d = WAVELENGTH / 2  # Antenna spacing
 OUT = os.getcwd()
 
+
+AP1_LAT1, AP1_LONG1 = (12, 15)
+AP1_LAT2, AP1_LONG2 = (12, 15)
+AP1_LAT, AP1_LONG = (12, 15)
+
+AP2_LAT1, AP2_LONG1 = (12, 15)
+AP2_LAT2, AP2_LONG2 = (12, 15)
+AP2_LAT, AP2_LONG = (12, 15)
+
+AP3_LAT1, AP3_LONG1 = (12, 15)
+AP3_LAT2, AP3_LONG2 = (12, 15)
+AP3_LAT, AP3_LONG = (12, 15)
+
+
 minio_client = Minio(
     "128.205.218.189:9000",  # Replace with your MinIO server address
     access_key="admin",  # MinIO access key
@@ -111,6 +125,8 @@ def retrieve_csi(bucket_name="wl-data"):
                         csi_compensated=csi_compensated,
                     )
 
+                    aoaGT = generate_AoA_GT(gps)
+
                     heatmaps.append(heatmap)
                     if len(heatmaps) == 3:
                         send_heatmaps(
@@ -144,48 +160,10 @@ def send_heatmaps(user_id, timestamp, gyro_xyz, accel_xyz, GPS_lat, GPS_long, he
     store_received_data(user_data)
 
 
-def uncalibrated_csi(ap_name, csi_i: list[float], csi_r: list[float]):
-    csi = csi_r + 1.0j * csi_i
-    csi = csi.reshape((4, 4, 256)).T
-    csi = csi[subcarrier_indices[80e6]]
-    csi = csi[:, :, 0]
-
-    fs = 8e6  # ADC sampling frequency in Hz
-    N_subfrequencies = len(
-        get_channel_frequencies(155, 80e6)
-    )  # Number of samples per chirp
-    freqs_subcarriers = get_channel_frequencies(155, 80e6)
-    k = 2 * np.pi * np.mean(N_subfrequencies) / (C)  # Slope (Hz/s)
-
-    # Time and frequency axes
-    Ts = 1 / fs  # Sampling period
-    t = np.arange(0, N_subfrequencies) * Ts  # Time axis
-    delta_freqs = np.arange(0, fs, fs / N_subfrequencies)  # Frequency axis
-    delta_est = delta_freqs / k  # Slope-based estimation
-    # distance_range = delta_est * C  # Convert to distance
-
-    exponent_range = np.exp(
-        (
-            1j
-            * 2
-            * np.pi
-            * DISTANCES.reshape(400, 1)
-            @ freqs_subcarriers.reshape(234, 1).T
-            / C
-        )
-    )
-
-    rangeFFT = exponent_range @ csi
-    exponent_AoA = np.exp(
-        (1j * 2 * np.pi * FREQ * d / C)
-        * np.arange(1, N_Rx + 1)[:, None]
-        @ np.sin(np.radians(ANGLES.reshape(360, 1))).T
-    )
-
-    AoARangeFFT = rangeFFT @ exponent_AoA  # 400x360 matrix
-
-    plot_csiGraph(rangeFFT, ap_name)
-    plot_heatmaps(AoARangeFFT)
+def generate_AoA_GT(
+    user_GPS: list[float],
+):
+    theta = np.arctan()
 
 
 def calibrate_csi(
@@ -234,7 +212,51 @@ def calibrate_csi(
     stringComplex = [
         str(x) for x in AoARangeFFT.flatten().tolist()
     ]  # Converts all complex numbers to strings, needs to be converted back when parsing
-    # return stringComplex
+    # plot_csiGraph(rangeFFT, ap_name)
+    # plot_heatmaps(AoARangeFFT)
+    return stringComplex
+
+
+def uncalibrated_csi(ap_name, csi_i: list[float], csi_r: list[float]):
+    csi = csi_r + 1.0j * csi_i
+    csi = csi.reshape((4, 4, 256)).T
+    csi = csi[subcarrier_indices[80e6]]
+    csi = csi[:, :, 0]
+
+    fs = 8e6  # ADC sampling frequency in Hz
+    N_subfrequencies = len(
+        get_channel_frequencies(155, 80e6)
+    )  # Number of samples per chirp
+    freqs_subcarriers = get_channel_frequencies(155, 80e6)
+    k = 2 * np.pi * np.mean(N_subfrequencies) / (C)  # Slope (Hz/s)
+
+    # Time and frequency axes
+    Ts = 1 / fs  # Sampling period
+    t = np.arange(0, N_subfrequencies) * Ts  # Time axis
+    delta_freqs = np.arange(0, fs, fs / N_subfrequencies)  # Frequency axis
+    delta_est = delta_freqs / k  # Slope-based estimation
+    # distance_range = delta_est * C  # Convert to distance
+
+    exponent_range = np.exp(
+        (
+            1j
+            * 2
+            * np.pi
+            * DISTANCES.reshape(400, 1)
+            @ freqs_subcarriers.reshape(234, 1).T
+            / C
+        )
+    )
+
+    rangeFFT = exponent_range @ csi
+    exponent_AoA = np.exp(
+        (1j * 2 * np.pi * FREQ * d / C)
+        * np.arange(1, N_Rx + 1)[:, None]
+        @ np.sin(np.radians(ANGLES.reshape(360, 1))).T
+    )
+
+    AoARangeFFT = rangeFFT @ exponent_AoA  # 400x360 matrix
+
     plot_csiGraph(rangeFFT, ap_name)
     plot_heatmaps(AoARangeFFT)
 
