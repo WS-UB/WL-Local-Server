@@ -117,7 +117,11 @@ def retrieve_csi(bucket_name="wl-data"):
                     )
 
                     aoaGT = generate_AoA_GT(
-                        [GPS_lat, GPS_long], apLoc=apLoc, apL1=apL1, apL2=apL2
+                        [GPS_lat, GPS_long],
+                        apLoc=apLoc,
+                        apL1=apL1,
+                        apL2=apL2,
+                        apName=ap_name,
                     )
 
                     heatmaps.append(heatmap)
@@ -174,7 +178,11 @@ def send_heatmaps(
 
 
 def generate_AoA_GT(
-    user_GPS: list[float], apLoc: list[float], apL1: list[float], apL2: list[float]
+    user_GPS: list[float],
+    apLoc: list[float],
+    apL1: list[float],
+    apL2: list[float],
+    apName: str,
 ):
     apLoc_lat, apLoc_long = (apLoc[0], apLoc[1])
     apL1_lat, apL1_long = (apL1[0], apL1[1])
@@ -184,7 +192,7 @@ def generate_AoA_GT(
     theta = np.arctan((apL2_lat - apL1_lat) / (apL2_long - apL1_long))
     phi = np.arctan((user_lat - apLoc_lat) / (user_long - apLoc_long))
     aoaGt = np.degrees(phi) - (90 + np.degrees(theta))
-    print(f"AoA Ground Truth: {aoaGt}")
+    print(f"AoA Ground Truth for {apName}: {aoaGt}")
     return aoaGt
 
 
@@ -322,6 +330,7 @@ def plot_heatmaps(heatmap):
 
 def main():
     retrieve_csi()
+    print("\nHeatmaps have been successfully generated!")
 
 
 if __name__ == "__main__":
