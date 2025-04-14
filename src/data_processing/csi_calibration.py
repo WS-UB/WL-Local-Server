@@ -8,6 +8,7 @@ from io import BytesIO
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from src.data_processing.constants import (
@@ -37,19 +38,6 @@ N_Rx = 4
 WAVELENGTH = C / FREQ
 d = WAVELENGTH / 2  # Antenna spacing
 OUT = os.getcwd()
-
-
-AP1_LAT1, AP1_LONG1 = (12, 15)
-AP1_LAT2, AP1_LONG2 = (12, 15)
-AP1_LAT, AP1_LONG = (12, 15)
-
-AP2_LAT1, AP2_LONG1 = (12, 15)
-AP2_LAT2, AP2_LONG2 = (12, 15)
-AP2_LAT, AP2_LONG = (12, 15)
-
-AP3_LAT1, AP3_LONG1 = (12, 15)
-AP3_LAT2, AP3_LONG2 = (12, 15)
-AP3_LAT, AP3_LONG = (12, 15)
 
 
 minio_client = Minio(
@@ -104,6 +92,9 @@ def retrieve_csi(bucket_name="wl-data"):
                 csi_data = extract_csi_data(wifi_data)
                 for ap_name in AP_NAMES:
                     rx_ip = wifi_data[ap_name][11].split(": ")[1]
+                    apLoc = json.loads(wifi_data[ap_name][12].split(": ")[1])
+                    apL1 = json.loads(wifi_data[ap_name][13].split(": ")[1])
+                    apL2 = json.loads(wifi_data[ap_name][14].split(": ")[1])
                     csi_compensatedRaw = scipy.io.loadmat(
                         COMPENSATION_FILES[rx_ip]
                     )  # Load CSI compensation
@@ -125,7 +116,9 @@ def retrieve_csi(bucket_name="wl-data"):
                         csi_compensated=csi_compensated,
                     )
 
-                    aoaGT = generate_AoA_GT(gps)
+                    aoaGT = generate_AoA_GT(
+                        [GPS_lat, GPS_long], apLoc=apLoc, apL1=apL1, apL2=apL2
+                    )
 
                     heatmaps.append(heatmap)
                     if len(heatmaps) == 3:
@@ -137,11 +130,27 @@ def retrieve_csi(bucket_name="wl-data"):
                             GPS_lat=GPS_lat,
                             GPS_long=GPS_long,
                             heatmaps=heatmaps,
+                            apLoc=apLoc,
+                            apL1=apL1,
+                            apL2=apL2,
+                            aoaGT=aoaGT,
                         )
     return
 
 
-def send_heatmaps(user_id, timestamp, gyro_xyz, accel_xyz, GPS_lat, GPS_long, heatmaps):
+def send_heatmaps(
+    user_id,
+    timestamp,
+    gyro_xyz,
+    accel_xyz,
+    GPS_lat,
+    GPS_long,
+    heatmaps,
+    apLoc,
+    apL1,
+    apL2,
+    aoaGT,
+):
     user_data = json.dumps(
         [
             {
@@ -153,6 +162,10 @@ def send_heatmaps(user_id, timestamp, gyro_xyz, accel_xyz, GPS_lat, GPS_long, he
                     "WiFi-AP-1_HEATMAP": heatmaps[0],
                     "WiFi-AP-2_HEATMAP": heatmaps[1],
                     "WiFi-AP-3_HEATMAP": heatmaps[2],
+                    "AP Location": apLoc,
+                    "AP L1": apL1,
+                    "AP L2": apL2,
+                    "AoA Ground Truth": aoaGT,
                 },
             }
         ],
@@ -161,9 +174,18 @@ def send_heatmaps(user_id, timestamp, gyro_xyz, accel_xyz, GPS_lat, GPS_long, he
 
 
 def generate_AoA_GT(
-    user_GPS: list[float],
+    user_GPS: list[float], apLoc: list[float], apL1: list[float], apL2: list[float]
 ):
-    theta = np.arctan()
+    apLoc_lat, apLoc_long = (apLoc[0], apLoc[1])
+    apL1_lat, apL1_long = (apL1[0], apL1[1])
+    apL2_lat, apL2_long = (apL2[0], apL2[1])
+    user_lat, user_long = (user_GPS[0], user_GPS[1])
+
+    theta = np.arctan((apL2_lat - apL1_lat) / (apL2_long - apL1_long))
+    phi = np.arctan((user_lat - apLoc_lat) / (user_long - apLoc_long))
+    aoaGt = np.degrees(phi) - (90 + np.degrees(theta))
+    print(f"AoA Ground Truth: {aoaGt}")
+    return aoaGt
 
 
 def calibrate_csi(
