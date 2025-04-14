@@ -191,7 +191,7 @@ def generate_AoA_GT(
 
     theta = np.arctan((apL2_lat - apL1_lat) / (apL2_long - apL1_long))
     phi = np.arctan((user_lat - apLoc_lat) / (user_long - apLoc_long))
-    aoaGt = np.degrees(phi) - (90 + np.degrees(theta))
+    aoaGt = phi - (90 + theta)
     print(f"AoA Ground Truth for {apName}: {aoaGt}")
     return aoaGt
 
