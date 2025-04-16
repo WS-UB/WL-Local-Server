@@ -116,7 +116,7 @@ def retrieve_csi(bucket_name="wl-data"):
                         csi_compensated=csi_compensated,
                     )
 
-                    aoaGT = generate_AoA_GT(
+                    aoaGT, theta, phi, tof = generate_AoA_GT(
                         [GPS_lat, GPS_long],
                         apLoc=apLoc,
                         apL1=apL1,
@@ -137,6 +137,9 @@ def retrieve_csi(bucket_name="wl-data"):
                             apLoc=apLoc,
                             apL1=apL1,
                             apL2=apL2,
+                            theta=theta,
+                            phi=phi,
+                            tof=tof,
                             aoaGT=aoaGT,
                         )
     return
@@ -153,6 +156,9 @@ def send_heatmaps(
     apLoc,
     apL1,
     apL2,
+    theta,
+    phi,
+    tof,
     aoaGT,
 ):
     user_data = json.dumps(
@@ -169,12 +175,29 @@ def send_heatmaps(
                     "AP Location": apLoc,
                     "AP L1": apL1,
                     "AP L2": apL2,
+                    "Theta": theta,
+                    "Phi": phi,
+                    "ToF (m)": tof,
                     "AoA Ground Truth": aoaGT,
                 },
             }
         ],
     )
     store_received_data(user_data)
+
+
+def haversine(latitude1: float, longitude1: float, latitude2: float, longitude2: float):
+    earthR = 6.371e3
+    latitude1_rads = np.deg2rad(latitude1)
+    longitude1_rads = np.deg2rad(longitude1)
+    latitude2_rads = np.deg2rad(latitude2)
+    longitude2_rads = np.deg2rad(longitude2)
+    sin1 = np.sin((latitude2_rads - latitude1_rads) / 2) ** 2
+    cos1 = np.cos(latitude1_rads)
+    cos2 = np.cos(latitude2_rads)
+    sin2 = np.sin((longitude2_rads - longitude1_rads) / 2) ** 2
+    computation = 2 * earthR * np.arcsin(np.sqrt(sin1 + cos1 * cos2 * sin2))
+    return computation * 1e3
 
 
 def generate_AoA_GT(
@@ -184,16 +207,27 @@ def generate_AoA_GT(
     apL2: list[float],
     apName: str,
 ):
+
     apLoc_lat, apLoc_long = (apLoc[0], apLoc[1])
     apL1_lat, apL1_long = (apL1[0], apL1[1])
     apL2_lat, apL2_long = (apL2[0], apL2[1])
     user_lat, user_long = (user_GPS[0], user_GPS[1])
+    # print(f"{user_lat}, {user_long}")
 
-    theta = np.arctan((apL2_lat - apL1_lat) / (apL2_long - apL1_long))
-    phi = np.arctan((user_lat - apLoc_lat) / (user_long - apLoc_long))
-    aoaGt = np.degrees(phi) - (90 + np.degrees(theta))
+    theta = np.arctan2((apL2_lat - apL1_lat), (apL2_long - apL1_long)) * (180 / np.pi)
+
+    if apName == "WiFi-AP-2":
+        theta = 0
+
+    calc = haversine(user_lat, user_long, apLoc_lat, apLoc_long)
+    # if apName == "WiFi-AP-1":
+    # theta = -theta
+    # print(f"{apName}: {theta}")
+    phi = np.arctan2((user_lat - apLoc_lat), (user_long - apLoc_long)) * (180 / np.pi)
+    aoaGt = phi - (90 + theta)
+    # # print(f"{apName} Phi: {phi}")
     print(f"AoA Ground Truth for {apName}: {aoaGt}")
-    return aoaGt
+    return aoaGt, theta, phi, calc
 
 
 def calibrate_csi(
@@ -329,6 +363,14 @@ def plot_heatmaps(heatmap):
 
 
 def main():
+    print(
+        haversine(
+            43.002879692437574,
+            -78.78684915216567,
+            43.00290495134294,
+            -78.78737411324471,
+        )
+    )
     retrieve_csi()
     print("\nHeatmaps have been successfully generated!")
 
