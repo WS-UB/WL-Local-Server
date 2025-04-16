@@ -61,6 +61,7 @@ class DLocDatasetV2(Dataset):
         gps_data = json.loads(row['GPS'])
         # Normalize GPS data
         norm_gps = normalize_gps(gps_data)
+        gps_tensor = torch.tensor(norm_gps, dtype=torch.float32)
 
         # Convert to torch tensors
         heatmap_tensor = torch.from_numpy(combined_heatmaps.astype(np.float32))
@@ -68,7 +69,7 @@ class DLocDatasetV2(Dataset):
         if self.transform:
             heatmap_tensor = self.transform(heatmap_tensor)
 
-        return heatmap_tensor, aoa_tensor, norm_gps
+        return heatmap_tensor, aoa_tensor, gps_tensor
 
     @staticmethod
     def process_parquet_file(parquet_file_path: str):
