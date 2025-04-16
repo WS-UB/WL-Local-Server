@@ -5,6 +5,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import numpy as np
+import os
 
 
 AP_NAMES = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
@@ -12,12 +13,11 @@ DISTANCES = np.arange(0, 40, 0.1)
 ANGLES = np.arange(-90, 90, 0.5)
 
 minio_client = Minio(
-    "128.205.218.189:9000",  # Replace with your MinIO server address
-    access_key="admin",  # MinIO access key
-    secret_key="password",  # MinIO secret key
-    secure=False,  # Set to True if using HTTPS
-)
-
+        os.getenv("MINIO_ENDPOINT"),
+        access_key=os.getenv("MINIO_ACCESS_KEY"),
+        secret_key=os.getenv("MINIO_SECRET_KEY"),
+        secure=os.getenv("MINIO_SECURE").lower() == 'true',
+    )
 
 def extract_csi_data(wifi_data, ap_names=AP_NAMES):
     csi_data = {}

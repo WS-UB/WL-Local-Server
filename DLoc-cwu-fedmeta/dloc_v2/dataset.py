@@ -53,6 +53,10 @@ class DLocDatasetV2(Dataset):
         # Stack all heatmaps along a new dimension
         combined_heatmaps = np.stack(all_heatmaps, axis=0)
         
+        # Pull out AoA ground truth
+        aoa_val = float(wifi_data.get("AoA Ground Truth", 0.0))
+        aoa_tensor = torch.tensor(aoa_val, dtype=torch.float32)
+
         # Get GPS data
         gps_data = json.loads(row['GPS'])
         # Normalize GPS data
@@ -64,13 +68,14 @@ class DLocDatasetV2(Dataset):
         if self.transform:
             heatmap_tensor = self.transform(heatmap_tensor)
 
-        return heatmap_tensor, norm_gps
+        return heatmap_tensor, aoa_tensor, norm_gps
 
     @staticmethod
     def process_parquet_file(parquet_file_path: str):
         df = pd.read_parquet(parquet_file_path)
         all_heatmaps = []
         all_gps = []
+        all_aoa = []
         heatmap_dims = (400, 360)
         ap_names = ["WiFi-AP-1_HEATMAP", "WiFi-AP-2_HEATMAP", "WiFi-AP-3_HEATMAP"]
 
@@ -91,15 +96,16 @@ class DLocDatasetV2(Dataset):
             combined_heatmaps = np.stack(ap_heatmaps, axis=0)
             all_heatmaps.append(combined_heatmaps)
 
+            all_aoa.append(float(wifi_data.get("AoA Ground Truth", 0.0)))
+
             gps_data = json.loads(row['GPS'])
             gps_coords = np.array([gps_data['latitude'], gps_data['longitude']], dtype=np.float32)
             all_gps.append(gps_coords)
 
-        return all_heatmaps, all_gps
+        return all_heatmaps, all_aoa, all_gps
 
 
 
-# Example usage
 if __name__ == "__main__":
     mode = input("Do you want to 'load' data or 'process' data? (type 'load' or 'process'): ").strip().lower()
     if mode == "process":
