@@ -130,8 +130,9 @@ if __name__ == "__main__":
         print(f"Dataset length: {len(dataset)}")
         
         # Get the first sample
-        heatmaps, norm_gps = dataset[0]
+        heatmaps, aoa_tensor, norm_gps = dataset[0]
         print(f"Heatmaps shape: {heatmaps.shape}")  # Should be [3, 400, 360]
+        print(f"Aoa Ground Truth: {aoa_tensor}")
         print(f"Normalized GPS: {norm_gps}")
 
         # Visualize a heatmap (optional)
