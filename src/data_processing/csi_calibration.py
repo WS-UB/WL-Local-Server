@@ -70,7 +70,9 @@ def retrieve_csi(bucket_name="wl-data"):
         bucket_name, prefix=folder_prefix, recursive=True
     )
 
-    save_dir = os.path.join("/Users/harrisonmoore/Developer/WL-Local-Server", folder)
+    save_dir = os.path.join(
+        "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folder
+    )
     if os.path.exists(save_dir):
         shutil.rmtree(save_dir)  # Deletes the whole directory and contents
     os.makedirs(save_dir)
@@ -357,7 +359,7 @@ def plot_csiGraph(csiFFT, ap_name):
 
 def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
     save_dir = os.path.join(
-        "/Users/harrisonmoore/Developer/WL-Local-Server", folderName
+        "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folderName
     )
 
     filename = f"{folderName}_{timestamp}_{apName}.jpg"
@@ -381,7 +383,7 @@ def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
     plt.ylabel("AoA (°)")
     plt.title(f"AoA vs Range Heatmap ({apName})")
     plt.axhline(
-        y=-aoaGT,
+        y=aoaGT,
         color="red",
         linestyle="--",
         linewidth=2,
