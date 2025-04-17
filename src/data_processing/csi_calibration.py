@@ -360,6 +360,7 @@ def plot_csiGraph(csiFFT, ap_name):
 
 def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
     magnitude = np.abs(heatmap)
+    rounded_AoA = round(aoaGT, 1)
 
     # Step 2: Find the index of the maximum value
     peak_index = np.unravel_index(np.argmax(magnitude), magnitude.shape)
@@ -390,11 +391,11 @@ def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
     plt.ylabel("AoA (°)")
     plt.title(f"AoA vs Range Heatmap ({apName})")
     plt.axhline(
-        y=aoaGT,
+        y=rounded_AoA,
         color="red",
         linestyle="--",
         linewidth=2,
-        label=f"Ground Truth AoA = {aoaGT}°",
+        label=f"Ground Truth AoA = {rounded_AoA}°",
     )
     plt.axhline(
         y=angle_peak,
