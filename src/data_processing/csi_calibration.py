@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.io
+from scipy.signal import find_peaks
 import sys
 import os
 import json
@@ -358,6 +359,12 @@ def plot_csiGraph(csiFFT, ap_name):
 
 
 def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
+    magnitude = np.abs(heatmap)
+
+    # Step 2: Find the index of the maximum value
+    peak_index = np.unravel_index(np.argmax(magnitude), magnitude.shape)
+    angle_peak = ANGLES[peak_index[1]]
+
     save_dir = os.path.join(
         "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folderName
     )
@@ -388,6 +395,13 @@ def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
         linestyle="--",
         linewidth=2,
         label=f"Ground Truth AoA = {aoaGT}°",
+    )
+    plt.axhline(
+        y=angle_peak,
+        color="green",
+        linestyle="--",
+        linewidth=2,
+        label=f"Raw AoA = {angle_peak}°",
     )
     plt.legend(loc="upper right")
 
