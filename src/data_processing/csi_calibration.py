@@ -7,6 +7,7 @@ from minio import Minio
 from io import BytesIO
 import pandas as pd
 import matplotlib.pyplot as plt
+import shutil
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
@@ -69,6 +70,11 @@ def retrieve_csi(bucket_name="wl-data"):
         bucket_name, prefix=folder_prefix, recursive=True
     )
 
+    save_dir = os.path.join("/Users/harrisonmoore/Developer/WL-Local-Server", folder)
+    if os.path.exists(save_dir):
+        shutil.rmtree(save_dir)  # Deletes the whole directory and contents
+    os.makedirs(save_dir)
+
     for obj in objects:
         if obj.object_name.endswith(".parquet"):
             response = minio_client.get_object(bucket_name, obj.object_name)
@@ -109,19 +115,22 @@ def retrieve_csi(bucket_name="wl-data"):
                         [float(x) for x in csi_data[ap_name][1]]
                     ).flatten()
 
-                    heatmap = calibrate_csi(
-                        ap_name,
-                        csi_i_flattened,
-                        csi_r_flattened,
-                        csi_compensated=csi_compensated,
-                    )
-
                     aoaGT, theta, phi, tof = generate_AoA_GT(
                         [GPS_lat, GPS_long],
                         apLoc=apLoc,
                         apL1=apL1,
                         apL2=apL2,
                         apName=ap_name,
+                    )
+
+                    heatmap = calibrate_csi(
+                        ap_name,
+                        csi_i_flattened,
+                        csi_r_flattened,
+                        aoaGT=aoaGT,
+                        folderName=folder,
+                        timestamp=timestamp,
+                        csi_compensated=csi_compensated,
                     )
 
                     heatmaps.append(heatmap)
@@ -214,10 +223,13 @@ def generate_AoA_GT(
     user_lat, user_long = (user_GPS[0], user_GPS[1])
     # print(f"{user_lat}, {user_long}")
 
+    if apName == "WiFi-AP-2":
+        apL2_long = -apL2_long
+
     theta = np.arctan2((apL2_lat - apL1_lat), (apL2_long - apL1_long)) * (180 / np.pi)
 
-    if apName == "WiFi-AP-2":
-        theta = 0
+    # if apName == "WiFi-AP-2":
+    #     theta = 0
 
     calc = haversine(user_lat, user_long, apLoc_lat, apLoc_long)
     # if apName == "WiFi-AP-1":
@@ -231,8 +243,15 @@ def generate_AoA_GT(
 
 
 def calibrate_csi(
-    ap_name, csi_i: list[float], csi_r: list[float], csi_compensated: list[float] = None
+    ap_name,
+    csi_i: list[float],
+    csi_r: list[float],
+    aoaGT: float,
+    folderName: str,
+    timestamp: str,
+    csi_compensated: list[float] = None,
 ):
+
     csi_complex = extract_csi(
         80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=csi_compensated
     )[:, :, 0]
@@ -277,7 +296,7 @@ def calibrate_csi(
         str(x) for x in AoARangeFFT.flatten().tolist()
     ]  # Converts all complex numbers to strings, needs to be converted back when parsing
     # plot_csiGraph(rangeFFT, ap_name)
-    # plot_heatmaps(AoARangeFFT)
+    plot_heatmaps(AoARangeFFT, aoaGT, ap_name, folderName, timestamp)
     return stringComplex
 
 
@@ -336,7 +355,14 @@ def plot_csiGraph(csiFFT, ap_name):
     return
 
 
-def plot_heatmaps(heatmap):
+def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
+    save_dir = os.path.join(
+        "/Users/harrisonmoore/Developer/WL-Local-Server", folderName
+    )
+
+    filename = f"{folderName}_{timestamp}_{apName}.jpg"
+    filepath = os.path.join(save_dir, filename)
+
     plt.figure(2)
     plt.imshow(
         np.abs(heatmap).T,
@@ -353,12 +379,21 @@ def plot_heatmaps(heatmap):
     # Labels and title
     plt.xlabel("Range (m)")
     plt.ylabel("AoA (°)")
-    plt.title("AoA vs Range Heatmap")
+    plt.title(f"AoA vs Range Heatmap ({apName})")
+    plt.axhline(
+        y=-aoaGT,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label=f"Ground Truth AoA = {aoaGT}°",
+    )
+    plt.legend(loc="upper right")
 
     # Colorbar for scale
     plt.colorbar(label="Magnitude")
 
-    plt.show()
+    plt.savefig(filepath, dpi=300, bbox_inches="tight")
+    plt.close()
     return
 
 
