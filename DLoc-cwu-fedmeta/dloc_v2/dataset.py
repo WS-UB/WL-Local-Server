@@ -4,11 +4,10 @@ import numpy as np
 from typing import Optional, Callable
 import pandas as pd
 import json
-import os
-from minio import Minio
-from io import BytesIO
 from dotenv import load_dotenv
 from gps_cali import normalize_gps
+from fetchdata import fetch_selected_parquet_from_minio, fetch_and_split_parquet_from_minio
+
 
 class DLocDatasetV2(Dataset):
     def __init__(self, parquet_file_path: str, transform: Optional[Callable] = None):
@@ -54,10 +53,15 @@ class DLocDatasetV2(Dataset):
         # Stack all heatmaps along a new dimension
         combined_heatmaps = np.stack(all_heatmaps, axis=0)
         
+        # Pull out AoA ground truth
+        aoa_val = float(wifi_data.get("AoA Ground Truth", 0.0))
+        aoa_tensor = torch.tensor(aoa_val, dtype=torch.float32)
+
         # Get GPS data
         gps_data = json.loads(row['GPS'])
         # Normalize GPS data
         norm_gps = normalize_gps(gps_data)
+        gps_tensor = torch.tensor(norm_gps, dtype=torch.float32)
 
         # Convert to torch tensors
         heatmap_tensor = torch.from_numpy(combined_heatmaps.astype(np.float32))
@@ -65,13 +69,14 @@ class DLocDatasetV2(Dataset):
         if self.transform:
             heatmap_tensor = self.transform(heatmap_tensor)
 
-        return heatmap_tensor, norm_gps
+        return heatmap_tensor, aoa_tensor, gps_tensor
 
     @staticmethod
     def process_parquet_file(parquet_file_path: str):
         df = pd.read_parquet(parquet_file_path)
         all_heatmaps = []
         all_gps = []
+        all_aoa = []
         heatmap_dims = (400, 360)
         ap_names = ["WiFi-AP-1_HEATMAP", "WiFi-AP-2_HEATMAP", "WiFi-AP-3_HEATMAP"]
 
@@ -92,78 +97,57 @@ class DLocDatasetV2(Dataset):
             combined_heatmaps = np.stack(ap_heatmaps, axis=0)
             all_heatmaps.append(combined_heatmaps)
 
+            all_aoa.append(float(wifi_data.get("AoA Ground Truth", 0.0)))
+
             gps_data = json.loads(row['GPS'])
             gps_coords = np.array([gps_data['latitude'], gps_data['longitude']], dtype=np.float32)
             all_gps.append(gps_coords)
 
-        return all_heatmaps, all_gps
+        return all_heatmaps, all_aoa, all_gps
 
-def fetch_selected_parquet_from_minio(bucket_name="wl-data"):
-    load_dotenv()
-    minio_client = Minio(
-        os.getenv("MINIO_ENDPOINT"),
-        access_key=os.getenv("MINIO_ACCESS_KEY"),
-        secret_key=os.getenv("MINIO_SECRET_KEY"),
-        secure=os.getenv("MINIO_SECURE").lower() == 'true',
-    )
 
-    folder = input("Enter MinIO folder name: ").strip()
-    prefix = f"{folder}/"
-    os.makedirs("data", exist_ok=True)
 
-    try:
-        objects = list(minio_client.list_objects(bucket_name, prefix=prefix, recursive=True))
-        parquet_files = [obj for obj in objects if obj.object_name.endswith(".parquet")]
-
-        if not parquet_files:
-            print("⚠️ No .parquet files found in that folder.")
-            return None
-
-        print("\n📄 Available .parquet files:")
-        for i, obj in enumerate(parquet_files):
-            print(f"[{i}] {obj.object_name}")
-
-        idx = int(input("\nSelect file index to download: ").strip())
-        selected_obj = parquet_files[idx]
-
-        print(f"\n📥 Downloading {selected_obj.object_name}")
-        response = minio_client.get_object(bucket_name, selected_obj.object_name)
-
-        local_filename = os.path.join("data", os.path.basename(selected_obj.object_name))
-        with open(local_filename, "wb") as f:
-            for chunk in response.stream(32 * 1024):
-                f.write(chunk)
-
-        print(f"✅ Saved to {local_filename}")
-        return local_filename
-
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return None
-
-# Example usage
 if __name__ == "__main__":
-    datapath = './data/new.parquet'  # Update with your actual file path
-    dataset = DLocDatasetV2(parquet_file_path=datapath)
-    print(f"Dataset length: {len(dataset)}")
-    
-    # Get the first sample
-    heatmaps, norm_gps = dataset[0]
-    print(f"Heatmaps shape: {heatmaps.shape}")  # Should be [3, 400, 360]
-    print(f"Normalized GPS: {norm_gps}")
+    mode = input("Do you want to 'load' data or 'process' data? (type 'load' or 'process'): ").strip().lower()
+    if mode == "process":
+        splits = fetch_and_split_parquet_from_minio(max_workers=8)
+        if splits:
+            print("\n✅ Files have been split and downloaded as follows:")
+            print(f"Train files: {len(splits['train'])}")
+            print(f"Validation files: {len(splits['val'])}")
+            print(f"Test files: {len(splits['test'])}")
+        else:
+            print("❌ Processing failed; no files were split.")
+    else:
+        # Default is 'load' mode, which preserves the current functionality
+        path = fetch_selected_parquet_from_minio()
+        if path:
+            dataset = DLocDatasetV2(parquet_file_path=path)
+            print(f"✅ Loaded {len(dataset)} samples from {path}")
+        else:
+            print("❌ Failed to download a file from MinIO.")
+            exit(1)
 
-    # Visualize a heatmap (optional)
-    import matplotlib.pyplot as plt
-    
-    plt.figure(figsize=(10, 8))
-    plt.imshow(
-        heatmaps[0].numpy(),  # Display the first AP's heatmap
-        aspect='auto',
-        extent=[-30, 30, -90, 90],  # Based on DISTANCES and ANGLES from original code
-        origin='lower'
-    )
-    plt.colorbar(label='Magnitude')
-    plt.xlabel('Range (m)')
-    plt.ylabel('AoA (°)')
-    plt.title('Heatmap from WiFi-AP-1')
-    plt.show()
+        print(f"Dataset length: {len(dataset)}")
+        
+        # Get the first sample
+        heatmaps, aoa_tensor, norm_gps = dataset[0]
+        print(f"Heatmaps shape: {heatmaps.shape}")  # Should be [3, 400, 360]
+        print(f"Aoa Ground Truth: {aoa_tensor}")
+        print(f"Normalized GPS: {norm_gps}")
+
+        # Visualize a heatmap (optional)
+        import matplotlib.pyplot as plt
+        
+        plt.figure(figsize=(10, 8))
+        plt.imshow(
+            heatmaps[0].numpy(),  # Display the first AP's heatmap
+            aspect='auto',
+            extent=[-30, 30, -90, 90],  # Based on DISTANCES and ANGLES from original code
+            origin='lower'
+        )
+        plt.colorbar(label='Magnitude')
+        plt.xlabel('Range (m)')
+        plt.ylabel('AoA (°)')
+        plt.title('Heatmap from WiFi-AP-1')
+        plt.show()

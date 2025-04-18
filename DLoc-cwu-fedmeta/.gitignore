@@ -15,6 +15,7 @@ matlab/test_*
 *.m~
 *.DS_Store
 *.yaml
+*.parquet
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
