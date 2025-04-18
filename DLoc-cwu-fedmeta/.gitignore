@@ -130,6 +130,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+dloc_v2/.env
 
 # Spyder project settings
 .spyderproject
@@ -187,3 +188,4 @@ codegen/
 
 # Octave session info
 octave-workspace
+

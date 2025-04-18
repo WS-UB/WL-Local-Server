@@ -1,7 +1,8 @@
 import pandas as pd
 import pyarrow.parquet as pq
 
-def normalize_gps_from_parquet(parquet_file_path):
+
+def normalize_gps(gps_data):
     """
     Read GPS data from parquet file and normalize coordinates relative to davis_box.
     
@@ -26,17 +27,6 @@ def normalize_gps_from_parquet(parquet_file_path):
     long_min, long_max = min(longs), max(longs)
     
     try:
-        # Read the parquet file
-        df = pd.read_parquet(parquet_file_path)
-        
-        # Extract GPS data (assuming column named 'GPS' with dict containing 'latitude'/'longitude')
-        gps_data = df['GPS'].iloc[0]  # Get first row's GPS data
-        
-        # Handle case where GPS might be stored as string
-        if isinstance(gps_data, str):
-            import json
-            gps_data = json.loads(gps_data.replace("'", '"'))
-        
         gps_lat = gps_data['latitude']
         gps_long = gps_data['longitude']
         
@@ -49,12 +39,3 @@ def normalize_gps_from_parquet(parquet_file_path):
     except Exception as e:
         print(f"Error processing file: {str(e)}")
         return None, None
-
-# Example usage:
-# lat_norm, long_norm = normalize_gps_from_parquet('your_file.parquet')
-# print(f"Normalized coordinates: ({lat_norm}, {long_norm})")
-
-# if __name__ == "__main__":
-#     # Example usage
-#     lat_norm, long_norm = normalize_gps_from_parquet('./data/2025-04-01 17_57_32.769.parquet')
-#     print(f"Normalized coordinates: ({lat_norm}, {long_norm})")
