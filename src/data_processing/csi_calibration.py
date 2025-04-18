@@ -255,9 +255,11 @@ def calibrate_csi(
     csi_compensated: list[float] = None,
 ):
 
-    csi_complex = extract_csi(
-        80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=csi_compensated
-    )[:, :, 0]
+    csi_complex = extract_csi(80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=None)[
+        :, :, 0
+    ]
+
+    csi_complex = np.squeeze(csi_complex)
 
     # Hcomp = csi_complex
     # np.save(join(OUT, f"comp-{random.randint(1, 10)}.npy"), Hcomp)
@@ -266,7 +268,7 @@ def calibrate_csi(
     N_subfrequencies = len(
         get_channel_frequencies(155, 80e6)
     )  # Number of samples per chirp
-    freqs_subcarriers = get_channel_frequencies(155, 80e6)
+    fc, freqs_subcarriers = get_channel_frequencies(155, 80e6)
     k = 2 * np.pi * np.mean(N_subfrequencies) / (C)  # Slope (Hz/s)
 
     # Time and frequency axes
@@ -289,7 +291,7 @@ def calibrate_csi(
 
     rangeFFT = exponent_range @ csi_complex
     exponent_AoA = np.exp(
-        (1j * 2 * np.pi * FREQ * d / C)
+        (1j * 2 * np.pi * fc * d / C)
         * np.arange(1, N_Rx + 1)[:, None]
         @ np.sin(np.radians(ANGLES.reshape(360, 1))).T
     )

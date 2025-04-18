@@ -44,7 +44,7 @@ def get_channel_frequencies(ch, bw):
     if bw not in subcarrier_frequencies:
         print("Invalid bandwidth for OFDM")
         return None
-    return 5e9 + ch * 5e6 + subcarrier_frequencies[bw]
+    return (5e9 + ch * 5e6, 5e9 + ch * 5e6 + subcarrier_frequencies[bw])
 
 
 no_prof_algos = ["aoa_only"]
