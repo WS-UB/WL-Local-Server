@@ -23,7 +23,7 @@ from src.data_processing.pipeline_utils import extract_csi
 
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
-AP_NAMES = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
+AP_NAMES = ["WiFi-AP-1"]
 COMPENSATION_FILES = {
     "192.168.48.1": "src/data_processing/compensated_csi/48.1.mat",
     "192.168.48.2": "src/data_processing/compensated_csi/48.2.mat",
@@ -255,11 +255,11 @@ def calibrate_csi(
     csi_compensated: list[float] = None,
 ):
 
-    csi_complex = extract_csi(80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=None)[
-        :, :, 0
-    ]
+    csi_complex = extract_csi(
+        80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=csi_compensated
+    )[:, :, 0]
 
-    csi_complex = np.squeeze(csi_complex)
+    # csi_complex = np.squeeze(csi_complex)
 
     # Hcomp = csi_complex
     # np.save(join(OUT, f"comp-{random.randint(1, 10)}.npy"), Hcomp)

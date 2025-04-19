@@ -22,7 +22,7 @@ def nts(H, freq):
     return H
 
 
-def extract_csi(bw, csi_i, csi_r, comp=None, apply_nts=False, valid_tx=None):
+def extract_csi(bw, csi_i, csi_r, comp=None, apply_nts=True, valid_tx=None):
     bw = bw * 1e6
     csi = csi_r + 1.0j * csi_i
     csi = csi.reshape((NUM_TOTAL_TX, NUM_TOTAL_RX, int(bw * BW2NUM_SC))).T
@@ -44,7 +44,7 @@ def extract_csi(bw, csi_i, csi_r, comp=None, apply_nts=False, valid_tx=None):
         csi = nts(csi, constants.subcarrier_frequencies[bw])
 
     if comp is not None:
-        csi *= np.exp(-1j * np.angle(comp))
+        csi *= np.conjugate(comp)
 
     return csi
 
