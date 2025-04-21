@@ -23,7 +23,7 @@ from src.data_processing.pipeline_utils import extract_csi
 
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
-AP_NAMES = ["WiFi-AP-1"]
+AP_NAMES = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
 COMPENSATION_FILES = {
     "192.168.48.1": "src/data_processing/compensated_csi/48.1.mat",
     "192.168.48.2": "src/data_processing/compensated_csi/48.2.mat",
@@ -32,7 +32,7 @@ COMPENSATION_FILES = {
 
 SUBCARRIER_SPACING = subcarrier_width  # Subcarrier spacing (312.5 kHz)
 BW = 80e6
-DISTANCES = np.arange(-30, 30, 0.15)
+DISTANCES = np.arange(-10, 40, 0.125)
 ANGLES = np.arange(-90, 90, 0.5)
 FREQ = 5e9  # WiFi at 5.8 GHz
 C = 3e8  # Speed of light
@@ -227,7 +227,7 @@ def generate_AoA_GT(
     # print(f"{user_lat}, {user_long}")
 
     if apName == "WiFi-AP-2":
-        apL2_long = -apL2_long
+        apL1_lat = 43.002920470506126
 
     theta = np.arctan2((apL2_lat - apL1_lat), (apL2_long - apL1_long)) * (180 / np.pi)
 
@@ -237,11 +237,12 @@ def generate_AoA_GT(
     calc = haversine(user_lat, user_long, apLoc_lat, apLoc_long)
     # if apName == "WiFi-AP-1":
     # theta = -theta
-    # print(f"{apName}: {theta}")
+    print(f"User location: {user_lat}, {user_long}")
+    print(f"{apName} Theta: {theta}")
     phi = np.arctan2((user_lat - apLoc_lat), (user_long - apLoc_long)) * (180 / np.pi)
     aoaGt = phi - (90 + theta)
-    # # print(f"{apName} Phi: {phi}")
-    print(f"AoA Ground Truth for {apName}: {aoaGt}")
+    print(f"{apName} Phi: {phi}")
+    print(f"AoA Ground Truth for {apName}: {aoaGt}\n")
     return aoaGt, theta, phi, calc
 
 
@@ -301,7 +302,7 @@ def calibrate_csi(
         str(x) for x in AoARangeFFT.flatten().tolist()
     ]  # Converts all complex numbers to strings, needs to be converted back when parsing
     # plot_csiGraph(rangeFFT, ap_name)
-    plot_heatmaps(AoARangeFFT, aoaGT, ap_name, folderName, timestamp)
+    # plot_heatmaps(AoARangeFFT, aoaGT, ap_name, folderName, timestamp)
     return stringComplex
 
 
@@ -417,14 +418,6 @@ def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
 
 
 def main():
-    print(
-        haversine(
-            43.002879692437574,
-            -78.78684915216567,
-            43.00290495134294,
-            -78.78737411324471,
-        )
-    )
     retrieve_csi()
     print("\nHeatmaps have been successfully generated!")
 
