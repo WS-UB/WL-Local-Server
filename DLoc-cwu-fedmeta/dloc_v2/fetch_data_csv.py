@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-from io import StringIO
 from datetime import datetime
 from minio import Minio
 from dotenv import load_dotenv
@@ -19,50 +18,43 @@ def get_parquet_files(minio_client, bucket_name, folder):
     """Get all parquet files in the specified folder from MinIO."""
     prefix = f"{folder}/"
     objects = list(minio_client.list_objects(bucket_name, prefix=prefix, recursive=True))
-    parquet_files = [obj for obj in objects if obj.object_name.endswith(".parquet")]
-    return parquet_files
+    return [obj for obj in objects if obj.object_name.endswith(".parquet")]
 
 def create_file_metadata(parquet_files, folder):
-    """Create a DataFrame with metadata about the parquet files."""
-    data = []
+    """Create a DataFrame with just the columns we care about."""
+    records = []
     for obj in parquet_files:
-        file_name = obj.object_name
-        file_size_mb = obj.size / (1024 * 1024)  # Convert bytes to MB
-        
-        data.append({
+        records.append({
             "folder": folder,
-            "file_name": file_name,
-            "file_path": file_name,
-            "size_mb": round(file_size_mb, 2),
-            "last_modified": obj.last_modified,
-            "indexed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "file_name": obj.object_name,
+            "file_path": obj.object_name,
         })
-    
-    return pd.DataFrame(data)
+    return pd.DataFrame(records)
 
-def update_csv_index(new_data, csv_path="parquet_index.csv"):
-    """Update the CSV index with new parquet file information,
-    and write its integer index as the first column."""
+def update_csv_index(new_data, csv_path="data/parquet_index.csv"):
+    """Rewrite the CSV so it only has index, folder, file_name, file_path."""
     try:
-        # Load existing index if any
+        # Load existing or start fresh
         if os.path.exists(csv_path):
-            existing_data = pd.read_csv(csv_path)
+            existing = pd.read_csv(csv_path)
+            # drop any old entries from this folder
             folder = new_data["folder"].iloc[0]
-            existing_data = existing_data[existing_data["folder"] != folder]
-            combined_data = pd.concat([existing_data, new_data], ignore_index=True)
+            existing = existing[existing["folder"] != folder]
+            combined = pd.concat([existing, new_data], ignore_index=True)
         else:
-            combined_data = new_data
+            combined = new_data
 
-        # --- NEW: reset and name the integer index, so it becomes a column ---
-        combined_data.reset_index(drop=True, inplace=True)        # ensure clean 0-based index
-        combined_data.index = combined_data.index + 1             # if you want to start at 1
-        combined_data.index.name = "index"                        # give it a column name
+        # keep only the 3 data columns
+        combined = combined[["folder", "file_name", "file_path"]]
 
-        # now write it out, index=True writes that “index” column first
-        combined_data.to_csv(csv_path, index=True)
+        # reset & name the integer index (starts at 1 here)
+        combined.reset_index(drop=True, inplace=True)
+        combined.index = combined.index + 1
+        combined.index.name = "index"
 
-        print(f"Successfully updated index with {len(new_data)} new records.")
-        print(f"Total records in index: {len(combined_data)}")
+        # write it out—index=True makes that first column
+        combined.to_csv(csv_path, index=True)
+        print(f"✅ CSV updated at {csv_path}, {len(combined)} total records.")
         return True
 
     except Exception as e:
@@ -70,10 +62,8 @@ def update_csv_index(new_data, csv_path="parquet_index.csv"):
         return False
 
 def main(bucket_name="wl-data"):
-    """Main function to execute the script."""
     try:
         minio_client = get_minio_client()
-
         folder = input("Enter MinIO folder name to index: ").strip()
         parquet_files = get_parquet_files(minio_client, bucket_name, folder)
         if not parquet_files:
@@ -82,14 +72,12 @@ def main(bucket_name="wl-data"):
 
         metadata_df = create_file_metadata(parquet_files, folder)
 
+        # ensure `data/` exists
         csv_folder = "data"
+        os.makedirs(csv_folder, exist_ok=True)
         csv_path = os.path.join(csv_folder, "parquet_index.csv")
 
-
-        os.makedirs(csv_folder, exist_ok=True)
-
         update_csv_index(metadata_df, csv_path)
-        print("\n✅ Indexing complete!")
 
     except Exception as e:
         print(f"❌ Error: {e}")
