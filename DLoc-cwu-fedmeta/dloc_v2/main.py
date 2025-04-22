@@ -11,14 +11,14 @@ from utils.config import ExperimentConfig
 def main() -> None:
     # config setting
     config = ExperimentConfig(
-        experiment_name="training_100_epochs_4Xencoder_1Xdecoder_sending_feature_to_decoder",
+        experiment_name="testing_ml_model",
         batch_size=16,
         num_workers=8,
         pre_fetch_factor=2,
         max_epochs=100,
         lr=5e-5,
-        train_data_path="/home/csgrad/tahsinfu/Dloc/data/train_files.csv",
-        val_data_path="/home/csgrad/tahsinfu/Dloc/data/val_files.csv",
+        train_data_path="C:\Users\chong\Documents\GitHub\WL-Local-Server\DLoc-cwu-fedmeta\dloc_v2\data\test_data_path\2025-04-20_18-01-50.508.parquet",
+        val_data_path="C:\Users\chong\Documents\GitHub\WL-Local-Server\DLoc-cwu-fedmeta\dloc_v2\data\test_data_path\2025-04-20_18-02-51.197.parquet",
     )
 
     # model setting
@@ -43,7 +43,7 @@ def main() -> None:
         save_dir=logger_params.save_dir,
         project_name=logger_params.project_name,
         experiment_name=logger_params.experiment_name,
-    )
+    )   
     comet_logger.log_hyperparams(config.model_dump())
 
     # trainer setting
