@@ -40,6 +40,7 @@ N_Rx = 4
 WAVELENGTH = C / FREQ
 d = WAVELENGTH / 2  # Antenna spacing
 OUT = os.getcwd()
+HISTOGRAM = []
 
 
 minio_client = Minio(
@@ -83,8 +84,6 @@ def retrieve_csi(bucket_name="wl-data"):
             response = minio_client.get_object(bucket_name, obj.object_name)
             data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
             pd.set_option("display.max_colwidth", None)
-            # json_data = data.to_json(991956470159_DC991956470159_DCorient="records", indent=4).replace("\\", "")
-            # print(f"{json_data}\n")
             user_id = data["user_id"][0]
             timestamp = data["timestamp"][0]
             imu = data["IMU"].apply(json.loads)
@@ -135,6 +134,16 @@ def retrieve_csi(bucket_name="wl-data"):
                         timestamp=timestamp,
                         csi_compensated=csi_compensated,
                     )
+
+                    # heatmap = uncalibrated_csi(
+                    #     ap_name,
+                    #     csi_i_flattened,
+                    #     csi_r_flattened,
+                    #     aoaGT=aoaGT,
+                    #     folderName=folder,
+                    #     timestamp=timestamp,
+                    #     csi_compensated=csi_compensated,
+                    # )
 
                     heatmaps.append(heatmap)
                     if len(heatmaps) == 3:
@@ -198,6 +207,13 @@ def send_heatmaps(
     store_received_data(user_data)
 
 
+def peakFind(heatmap):
+    magnitude = np.abs(heatmap)
+    peak_index = np.unravel_index(np.argmax(magnitude), magnitude.shape)
+    angle_peak = ANGLES[peak_index[1]]
+    return angle_peak
+
+
 def haversine(latitude1: float, longitude1: float, latitude2: float, longitude2: float):
     earthR = 6.371e3
     latitude1_rads = np.deg2rad(latitude1)
@@ -257,7 +273,7 @@ def calibrate_csi(
 ):
 
     csi_complex = extract_csi(
-        80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=csi_compensated
+        80, csi_i=csi_i, csi_r=csi_r, apply_nts=False, comp=csi_compensated
     )[:, :, 0]
 
     # csi_complex = np.squeeze(csi_complex)
@@ -303,20 +319,38 @@ def calibrate_csi(
     ]  # Converts all complex numbers to strings, needs to be converted back when parsing
     # plot_csiGraph(rangeFFT, ap_name)
     # plot_heatmaps(AoARangeFFT, aoaGT, ap_name, folderName, timestamp)
+
+    rawAoA = peakFind(AoARangeFFT)
+    aoaDiff = aoaGT - rawAoA
+    HISTOGRAM.append(aoaDiff)
+
     return stringComplex
 
 
-def uncalibrated_csi(ap_name, csi_i: list[float], csi_r: list[float]):
-    csi = csi_r + 1.0j * csi_i
-    csi = csi.reshape((4, 4, 256)).T
-    csi = csi[subcarrier_indices[80e6]]
-    csi = csi[:, :, 0]
+def uncalibrated_csi(
+    ap_name,
+    csi_i: list[float],
+    csi_r: list[float],
+    aoaGT: float,
+    folderName: str,
+    timestamp: str,
+    csi_compensated: list[float] = None,
+):
+
+    # csi_complex = extract_csi(
+    #     80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=csi_compensated
+    # )[:, :, 0]
+
+    # csi_complex = np.squeeze(csi_complex)
+
+    # Hcomp = csi_complex
+    # np.save(join(OUT, f"comp-{random.randint(1, 10)}.npy"), Hcomp)
 
     fs = 8e6  # ADC sampling frequency in Hz
     N_subfrequencies = len(
         get_channel_frequencies(155, 80e6)
     )  # Number of samples per chirp
-    freqs_subcarriers = get_channel_frequencies(155, 80e6)
+    fc, freqs_subcarriers = get_channel_frequencies(155, 80e6)
     k = 2 * np.pi * np.mean(N_subfrequencies) / (C)  # Slope (Hz/s)
 
     # Time and frequency axes
@@ -337,17 +371,30 @@ def uncalibrated_csi(ap_name, csi_i: list[float], csi_r: list[float]):
         )
     )
 
-    rangeFFT = exponent_range @ csi
+    rangeFFT = exponent_range @ csi_compensated[:, :, 0]
     exponent_AoA = np.exp(
-        (1j * 2 * np.pi * FREQ * d / C)
+        (1j * 2 * np.pi * fc * d / C)
         * np.arange(1, N_Rx + 1)[:, None]
         @ np.sin(np.radians(ANGLES.reshape(360, 1))).T
     )
 
     AoARangeFFT = rangeFFT @ exponent_AoA  # 400x360 matrix
-
-    plot_csiGraph(rangeFFT, ap_name)
-    plot_heatmaps(AoARangeFFT)
+    plt.figure(2)
+    plt.xlabel("Range (m)")
+    plt.ylabel("AoA (°)")
+    plt.title(f"AoA vs Range Compensated Heatmap ({ap_name})")
+    plt.imshow(
+        np.abs(AoARangeFFT).T,
+        aspect="auto",
+        extent=[
+            DISTANCES.min(),
+            DISTANCES.max(),
+            ANGLES.min(),
+            ANGLES.max(),
+        ],
+        origin="lower",
+    )
+    plt.show()
 
 
 def plot_csiGraph(csiFFT, ap_name):
@@ -362,12 +409,9 @@ def plot_csiGraph(csiFFT, ap_name):
 
 
 def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
-    magnitude = np.abs(heatmap)
     rounded_AoA = round(aoaGT, 1)
-
     # Step 2: Find the index of the maximum value
-    peak_index = np.unravel_index(np.argmax(magnitude), magnitude.shape)
-    angle_peak = ANGLES[peak_index[1]]
+    angle_peak = peakFind(heatmap)
 
     save_dir = os.path.join(
         "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folderName
@@ -417,8 +461,25 @@ def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
     return
 
 
+def plot_histogram(data):
+    # Create bins that step by 25
+    # bins = np.arange(0, max(data) + 10, 10)
+    # Plot histogram
+    plt.hist(data, bins=30, edgecolor="black")
+
+    # Add labels and title
+    plt.xlabel("(AoAGT - rawAoA)")
+    plt.ylabel("Frequency")
+    plt.title("Histogram")
+
+    # Show the plot
+    plt.show()
+
+
 def main():
     retrieve_csi()
+    print(len(HISTOGRAM))
+    plot_histogram(HISTOGRAM)
     print("\nHeatmaps have been successfully generated!")
 
 
