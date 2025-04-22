@@ -185,6 +185,7 @@ class IMU_GPS_publisher:
 
         test_list = [
             self.GPS_list,
+            self.GPS_RAW_list,
             self.accelerator_list,
             self.gyroscope_list,
             [self.WiFi_CSI_1, self.WiFi_CSI_2, self.WiFi_CSI_3],
