@@ -62,28 +62,28 @@ class DLocDataModule(LightningDataModule):
 
 if __name__ == "__main__":
 
-    train_data_path = ["/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/train_data_path"]
-    val_data_path = ["/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/val_data_path"]
-    test_data_path = ["/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/test_data_path"]
+    # train_data_path = ["/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/train_data_path"]
+    # val_data_path = ["/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/val_data_path"]
+    # test_data_path = ["/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/test_data_path"]
 
-    data_module = DLocDataModule(train_data_paths=train_data_path, val_data_paths=val_data_path, test_data_paths=test_data_path)
-    data_module.setup()
+    # data_module = DLocDataModule(train_data_paths=train_data_path, val_data_paths=val_data_path, test_data_paths=test_data_path)
+    # data_module.setup()
 
     from fetchdata import fetch_and_split_parquet_from_minio
 
-    # splits = fetch_and_split_parquet_from_minio()
-    # if splits:
-    #     train_data_paths = splits["train"]
-    #     val_data_paths = splits["val"]
-    #     test_data_paths = splits["test"]
+    splits = fetch_and_split_parquet_from_minio()
+    if splits:
+        train_data_paths = splits["train"]
+        val_data_paths = splits["val"]
+        test_data_paths = splits["test"]
 
-    #     data_module = DLocDataModule(train_data_paths=train_data_paths,
-    #                                  val_data_paths=val_data_paths,
-    #                                  test_data_paths=test_data_paths,
-    #                                  batch_size=32,
-    #                                  num_workers=8,
-    #                                  prefetch_factor=2)
-    #     data_module.setup()
+        data_module = DLocDataModule(train_data_paths=train_data_paths,
+                                     val_data_paths=val_data_paths,
+                                     test_data_paths=test_data_paths,
+                                     batch_size=32,
+                                     num_workers=8,
+                                     prefetch_factor=2)
+        data_module.setup()
 
     for batch in data_module.train_dataloader():
         features_2d, aoa_label, location_label = batch

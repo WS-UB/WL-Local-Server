@@ -41,32 +41,30 @@ def create_file_metadata(parquet_files, folder):
     return pd.DataFrame(data)
 
 def update_csv_index(new_data, csv_path="parquet_index.csv"):
-    """Update the CSV index with new parquet file information."""
+    """Update the CSV index with new parquet file information,
+    and write its integer index as the first column."""
     try:
-        # Check if the CSV file exists
+        # Load existing index if any
         if os.path.exists(csv_path):
-            # Read existing CSV
             existing_data = pd.read_csv(csv_path)
-            print(f"Loaded existing index with {len(existing_data)} records.")
-            
-            # Remove entries from the same folder if they exist
             folder = new_data["folder"].iloc[0]
             existing_data = existing_data[existing_data["folder"] != folder]
-            print(f"Removed old entries for folder '{folder}'.")
-            
-            # Concatenate with new data
             combined_data = pd.concat([existing_data, new_data], ignore_index=True)
         else:
-            # If file doesn't exist, use only the new data
             combined_data = new_data
-            print(f"Creating new index file at {csv_path}")
-        
-        # Save the updated dataframe to CSV
-        combined_data.to_csv(csv_path, index=False)
+
+        # --- NEW: reset and name the integer index, so it becomes a column ---
+        combined_data.reset_index(drop=True, inplace=True)        # ensure clean 0-based index
+        combined_data.index = combined_data.index + 1             # if you want to start at 1
+        combined_data.index.name = "index"                        # give it a column name
+
+        # now write it out, index=True writes that “index” column first
+        combined_data.to_csv(csv_path, index=True)
+
         print(f"Successfully updated index with {len(new_data)} new records.")
         print(f"Total records in index: {len(combined_data)}")
         return True
-    
+
     except Exception as e:
         print(f"Error updating CSV index: {e}")
         return False
@@ -74,41 +72,25 @@ def update_csv_index(new_data, csv_path="parquet_index.csv"):
 def main(bucket_name="wl-data"):
     """Main function to execute the script."""
     try:
-        # Initialize MinIO client
         minio_client = get_minio_client()
-        
-        # Get folder name from user
+
         folder = input("Enter MinIO folder name to index: ").strip()
-        
-        # Get all parquet files in the folder
-        print(f"\nListing parquet files in '{folder}'...")
         parquet_files = get_parquet_files(minio_client, bucket_name, folder)
-        
         if not parquet_files:
             print(f"⚠️ No parquet files found in '{folder}'.")
             return
-        
-        # Display found files
-        print(f"\nFound {len(parquet_files)} parquet files:")
-        for i, obj in enumerate(parquet_files[:5]):  # Show first 5 files
-            print(f"  • {obj.object_name} ({round(obj.size / (1024 * 1024), 2)} MB)")
-        
-        if len(parquet_files) > 5:
-            print(f"  • ... and {len(parquet_files) - 5} more files")
-        
-        # Create metadata DataFrame
+
         metadata_df = create_file_metadata(parquet_files, folder)
-        
-        # Get CSV path
-        csv_path = input("\nEnter path for the CSV index file (default: parquet_index.csv): ").strip()
-        if not csv_path:
-            csv_path = "parquet_index.csv"
-        
-        # Update the CSV index
+
+        csv_folder = "data"
+        csv_path = os.path.join(csv_folder, "parquet_index.csv")
+
+
+        os.makedirs(csv_folder, exist_ok=True)
+
         update_csv_index(metadata_df, csv_path)
-        
         print("\n✅ Indexing complete!")
-        
+
     except Exception as e:
         print(f"❌ Error: {e}")
 
