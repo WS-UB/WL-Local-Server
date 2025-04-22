@@ -280,6 +280,7 @@ def one_router(accelerator_list, gyroscope_list, GPS_list, GPS_RAW_list, WiFi_li
         len(accelerator_list) > 0
         and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
         and len(GPS_list) > 0
+        and len(GPS_RAW_list) > 0
         and len(WiFi_CSI1) > 0
     ):
         accel_id = accelerator_list[5]
@@ -310,6 +311,7 @@ def one_router(accelerator_list, gyroscope_list, GPS_list, GPS_RAW_list, WiFi_li
         len(accelerator_list) > 0
         and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
         and len(GPS_list) > 0
+        and len(GPS_RAW_list) > 0
         and len(WiFi_CSI2) > 0
     ):
         accel_id = accelerator_list[5]
@@ -340,6 +342,7 @@ def one_router(accelerator_list, gyroscope_list, GPS_list, GPS_RAW_list, WiFi_li
         len(accelerator_list) > 0
         and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
         and len(GPS_list) > 0
+        and len(GPS_RAW_list) > 0
         and len(WiFi_CSI3) > 0
     ):
         accel_id = accelerator_list[5]
@@ -377,6 +380,7 @@ def two_routers(accelerator_list, gyroscope_list, GPS_list, GPS_RAW_list, WiFi_l
         len(accelerator_list) > 0
         and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
         and len(GPS_list) > 0
+        and len(GPS_RAW_list) > 0
         and len(WiFi_CSI1) > 0
         and len(WiFi_CSI2) > 0
     ):
@@ -411,6 +415,7 @@ def two_routers(accelerator_list, gyroscope_list, GPS_list, GPS_RAW_list, WiFi_l
         len(accelerator_list) > 0
         and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
         and len(GPS_list) > 0
+        and len(GPS_RAW_list) > 0
         and len(WiFi_CSI2) > 0
         and len(WiFi_CSI3) > 0
     ):
@@ -446,6 +451,7 @@ def two_routers(accelerator_list, gyroscope_list, GPS_list, GPS_RAW_list, WiFi_l
         len(accelerator_list) > 0
         and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
         and len(GPS_list) > 0
+        and len(GPS_RAW_list) > 0
         and len(WiFi_CSI1) > 0
         and len(WiFi_CSI3) > 0
     ):
@@ -487,6 +493,7 @@ def three_routers(accelerator_list, gyroscope_list, GPS_list, GPS_RAW_list, WiFi
         len(accelerator_list) > 0
         and len(gyroscope_list) > 0  # Handles synchronization of the IMU and GPS data
         and len(GPS_list) > 0
+        and len(GPS_RAW_list) > 0
         and len(WiFi_CSI1) > 0
         and len(WiFi_CSI2) > 0
         and len(WiFi_CSI3) > 0
