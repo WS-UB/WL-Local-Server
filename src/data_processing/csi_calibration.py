@@ -72,12 +72,12 @@ def retrieve_csi(bucket_name="wl-data"):
         bucket_name, prefix=folder_prefix, recursive=True
     )
 
-    save_dir = os.path.join(
-        "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folder
-    )
-    if os.path.exists(save_dir):
-        shutil.rmtree(save_dir)  # Deletes the whole directory and contents
-    os.makedirs(save_dir)
+    # save_dir = os.path.join(
+    #     "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folder
+    # )
+    # if os.path.exists(save_dir):
+    #     shutil.rmtree(save_dir)  # Deletes the whole directory and contents
+    # os.makedirs(save_dir)
 
     for obj in objects:
         if obj.object_name.endswith(".parquet"):
