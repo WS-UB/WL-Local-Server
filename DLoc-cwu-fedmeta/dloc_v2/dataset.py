@@ -11,6 +11,9 @@ from minio import Minio
 import os
 from io import BytesIO
 
+load_dotenv()
+BUCKET = os.getenv("MINIO_BUCKET")
+
 def get_minio_client():
     load_dotenv()
     return Minio(
@@ -23,20 +26,23 @@ def get_minio_client():
 class DLocDatasetV2(Dataset):
     """Loads one sample per parquet from MinIO, based on a CSV index."""
 
-    def __init__(self, index_csv: str, bucket_name: str, transform=None):
+    def __init__(self, index_csv: str, transform=None):
         """
         Args:
             index_csv: CSV with columns ['index','folder','file_name','file_path']
             bucket_name: the MinIO bucket to pull from
             transform: optional torch transform for the heatmap tensor
         """
+    
+        self.bucket = BUCKET
+        self.client = get_minio_client()
+
         self.index_df = pd.read_csv(index_csv)
         if 'file_path' not in self.index_df:
             raise ValueError(f"'file_path' column missing in {index_csv}")
 
         # Full list of MinIO object names, e.g. "my-folder/subfolder/my.parquet"
         self.file_paths = self.index_df['file_path'].tolist()
-        self.bucket = bucket_name
         self.client = get_minio_client()
         self.transform = transform
 
@@ -129,11 +135,6 @@ class DLocDatasetV2(Dataset):
 
         return all_heatmaps, all_aoa, all_gps
     
-    @staticmethod
-    def process_parquet_file(parquet_file_path: str):
-        """Maintained for backward compatibility"""
-        df = pd.read_parquet(parquet_file_path)
-        return DLocDatasetV2.process_dataframe(df)
 
 
 
@@ -145,16 +146,16 @@ if __name__ == "__main__":
     csv_path = input("CSV index path (e.g. data/parquet_index.csv): ").strip()
 
     # 2) Hardcode the bucket name
-    bucket = "wl-data"
+    
 
     # 3) Instantiate
     try:
-        ds = DLocDatasetV2(index_csv=csv_path, bucket_name=bucket, transform=None)
+        ds = DLocDatasetV2(index_csv=csv_path, transform=None)
     except Exception as e:
         print(f"❌ Failed to load dataset: {e}")
         exit(1)
 
-    print(f"✅ Loaded dataset from bucket '{bucket}' with {len(ds)} samples.")
+    print(f"✅ Loaded dataset from bucket '{BUCKET}' with {len(ds)} samples.")
 
     # 4) Prompt for which sample to inspect (1-based)
     n = len(ds)
@@ -181,7 +182,8 @@ if __name__ == "__main__":
             ax.imshow(
                 heatmap[i].numpy(),
                 origin="lower",
-                aspect="auto"
+                aspect="auto",
+                extent=[0, 5, -90, 90]
             )
             ax.set_title(f"Sample {idx_input} {ap_names[i]} Heatmap")
             ax.set_xlabel('Range (m)')

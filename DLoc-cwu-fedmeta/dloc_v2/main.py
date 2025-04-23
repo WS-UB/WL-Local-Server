@@ -8,6 +8,7 @@ from torchvision import transforms
 from utils.schema import LoggerParameters
 from utils.config import ExperimentConfig
 
+
 def main() -> None:
     # config setting
     config = ExperimentConfig(
@@ -17,8 +18,8 @@ def main() -> None:
         pre_fetch_factor=2,
         max_epochs=100,
         lr=5e-5,
-        train_data_path="C:\Users\chong\Documents\GitHub\WL-Local-Server\DLoc-cwu-fedmeta\dloc_v2\data\test_data_path\2025-04-20_18-01-50.508.parquet",
-        val_data_path="C:\Users\chong\Documents\GitHub\WL-Local-Server\DLoc-cwu-fedmeta\dloc_v2\data\test_data_path\2025-04-20_18-02-51.197.parquet",
+        train_data_path="/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/train_index.csv",
+        val_data_path="/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/validation_index.csv",
     )
 
     # model setting
