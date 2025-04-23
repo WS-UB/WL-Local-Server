@@ -26,8 +26,8 @@ def main() -> None:
     model = TrigAOAResNetModel(lr=config.lr)
 
     # create data module
-    transform = transforms.Compose([transforms.Normalize(mean=[0.1175, 0.1391, 0.1213, 0.1927],
-                                                         std=[0.1548, 0.1658, 0.1651, 0.2104])
+    transform = transforms.Compose([transforms.Normalize(mean=[0.1175, 0.1391, 0.1213],
+                                                         std=[0.1548, 0.1658, 0.1651])
                                    ])
     data_module = DLocDataModule(train_data_paths=config.train_data_path,
                                  val_data_paths=config.val_data_path,
@@ -52,7 +52,7 @@ def main() -> None:
                          logger=comet_logger,
                          devices= 1,
                          max_epochs=config.max_epochs,
-                         strategy="ddp_find_unused_parameters_false",)
+                         strategy="single_device",)
 
     # training
     trainer.fit(model, data_module)

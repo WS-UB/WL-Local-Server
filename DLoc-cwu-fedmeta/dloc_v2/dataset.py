@@ -89,7 +89,7 @@ class DLocDatasetV2(Dataset):
 
         # 4) AoA
         aoa = float(wifi.get("AoA Ground Truth", 0.0))
-        aoa_tensor = torch.tensor(aoa, dtype=torch.float32)
+        aoa_tensor = torch.full((len(self.ap_names),), aoa, dtype=torch.float32)
 
         # 5) GPS → normalize → tensor
         gps_raw = json.loads(row['GPS'])

@@ -31,13 +31,12 @@ class APMetadata:
     """
     def __init__(self) -> None:
         # AP locations in the dataset. Shape is (n_aps, 2) representing (x, y)
-        self._ap_locations = torch.tensor([[ 0. ,  2. ],
-                                          [16.8,  7.6],
-                                          [ 6.4,  7.6],
-                                          [12.4,  0. ]])
+        self._ap_locations = torch.tensor([[ 0.7660287626330197 ,  0.9021649411416651 ],
+                                          [ 0.8319004974134014 ,  0.6006892917898152 ],
+                                          [ 0.8066666095581368 ,  0.4136207974189282 ]])
 
         # Orientation of normal of the AP in the dataset w.r.t to map frame. Shape is (n_aps,)
-        self._ap_orientations = torch.tensor([0, -np.pi, -np.pi/2, np.pi/2])
+        self._ap_orientations = torch.tensor([np.pi/2, 0, -np.pi/2])
         assert self._ap_locations.shape[0] == self._ap_orientations.shape[0], "Shape mismatch."
 
         # cosine of ap orientation
