@@ -50,9 +50,9 @@ def main() -> None:
     # trainer setting
     trainer = pl.Trainer(accelerator="cpu",
                          logger=comet_logger,
-                         devices=[0],
+                         devices= 1,
                          max_epochs=config.max_epochs,
-                         strategy="ddp_find_unused_parameters_true",)
+                         strategy="ddp_find_unused_parameters_false",)
 
     # training
     trainer.fit(model, data_module)

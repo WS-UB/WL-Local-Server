@@ -35,15 +35,15 @@ class DLocDatasetV2(Dataset):
         """
     
         self.bucket = BUCKET
-        self.client = get_minio_client()
-
+        self._client = None
+    
         self.index_df = pd.read_csv(index_csv)
         if 'file_path' not in self.index_df:
             raise ValueError(f"'file_path' column missing in {index_csv}")
 
         # Full list of MinIO object names, e.g. "my-folder/subfolder/my.parquet"
         self.file_paths = self.index_df['file_path'].tolist()
-        self.client = get_minio_client()
+        #self.client = get_minio_client()
         self.transform = transform
 
         self.heatmap_dims = (400, 360)
@@ -52,6 +52,11 @@ class DLocDatasetV2(Dataset):
             "WiFi-AP-2_HEATMAP",
             "WiFi-AP-3_HEATMAP",
         ]
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = get_minio_client()
+        return self._client
 
     def __len__(self):
         return len(self.file_paths)

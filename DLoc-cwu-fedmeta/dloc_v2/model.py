@@ -1,4 +1,5 @@
 """Model definition and training and validation logic."""
+import comet_ml
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
