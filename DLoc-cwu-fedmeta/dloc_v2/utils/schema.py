@@ -85,7 +85,7 @@ class LoggerParameters:
     workspace: str = field(init=False)
 
     # project name
-    project_name: str = "dloc"
+    project_name: str = "ml-model-training"
 
     # directory to save log
     save_dir: str = "./logs"

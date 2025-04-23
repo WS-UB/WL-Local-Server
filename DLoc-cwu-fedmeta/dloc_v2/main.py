@@ -48,7 +48,7 @@ def main() -> None:
     comet_logger.log_hyperparams(config.model_dump())
 
     # trainer setting
-    trainer = pl.Trainer(accelerator="gpu",
+    trainer = pl.Trainer(accelerator="cpu",
                          logger=comet_logger,
                          devices=[0],
                          max_epochs=config.max_epochs,
