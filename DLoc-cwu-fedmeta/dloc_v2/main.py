@@ -16,10 +16,10 @@ def main() -> None:
         batch_size=16,
         num_workers=8,
         pre_fetch_factor=2,
-        max_epochs=1000,
+        max_epochs=1,
         lr=5e-5,
-        train_data_path="/home/wiloc/Documents/WL-Local-Server/DLoc-sp25-cse302/dloc_v2/data/train_index.csv",
-        val_data_path="/home/wiloc/Documents/WL-Local-Server/DLoc-sp25-cse302/dloc_v2/data/validation_index.csv",
+        train_data_path="/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/train_index.csv",
+        val_data_path="/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/data/validation_index.csv",
     )
 
     # model setting
@@ -48,18 +48,18 @@ def main() -> None:
     comet_logger.log_hyperparams(config.model_dump())
 
     # trainer setting
+    trainer = pl.Trainer(accelerator="cpu",
+                         logger=comet_logger,
+                         devices= 1,
+                         max_epochs=config.max_epochs,
+                         strategy="single_device",)
+
     # trainer = pl.Trainer(accelerator="gpu",
     #                      logger=comet_logger,
-    #                      devices= 1,
+    #                      devices=[0],
     #                      max_epochs=config.max_epochs,
-    #                      strategy="single_device",)
-
-    trainer = pl.Trainer(accelerator="gpu",
-                         logger=comet_logger,
-                         devices=[0],
-                         max_epochs=config.max_epochs,
-                         strategy="ddp_find_unused_parameters_true",
-                         log_every_n_steps=50)
+    #                      strategy="ddp_find_unused_parameters_true",
+    #                      log_every_n_steps=50)
     
     # training
     trainer.fit(model, data_module)

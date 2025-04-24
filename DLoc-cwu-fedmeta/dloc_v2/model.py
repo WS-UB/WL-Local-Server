@@ -8,10 +8,12 @@ from utils.schema import APMetadata, GTlabel, ModelOutput, LossTerms, AoAVisuali
 from utils.ray_intersection_solver import solve_ray_intersection_batch
 from utils.geometry_utils import cos_angle_sum, sin_angle_sum
 from torchmetrics import MetricCollection
-from metrics_calculator import AoAAccuracy, LocationAccuracy, MetricNames
+from metrics_calculator import AoAAccuracy, LocationAccuracy, MetricNames, measure, plot_location_error_cdf
 from utils.plot_utils import plot_location_pred_vs_gt, plot_aoa_visualization, plot_aoa_error_histograms, plot_gt_vs_pred_aoa
 from collections import deque
 import pdb
+import matplotlib.pyplot as plt
+
 
 ANGLE_LOSS_MULTIPLIER = 5
 
@@ -265,7 +267,7 @@ class TrigAOAResNetModel(pl.LightningModule):
 
         # reset metrics
         self.train_metrics.reset()
-
+        
     def validation_step(self, batch, batch_idx):
         model_pred, gt_label, val_loss = self._common_step(batch)
         self.val_metrics.update(model_pred, gt_label)
@@ -298,6 +300,9 @@ class TrigAOAResNetModel(pl.LightningModule):
         for metrics_name, metrics_value in metrics_result.items():
             if metrics_name.startswith('location_error'):
                 self.log(f"val_{metrics_name}", metrics_value.item())
+            elif metrics_name == MetricNames.LOCATION_ERROR_CDF:
+            # Skip logging the figure here - we'll handle it separately
+                continue
 
         # log the visualization data very self.display_viz_data_epoch_interval epoch
 
@@ -331,6 +336,10 @@ class TrigAOAResNetModel(pl.LightningModule):
                                                       plot_in_degrees=True)
             self.logger.experiment.log_figure(figure_name='val_aoa_gt_vs_pred', figure=aoa_gt_vs_pred_plot)
 
+        if MetricNames.LOCATION_ERROR_CDF in metrics_result:
+            cdf_plot = metrics_result[MetricNames.LOCATION_ERROR_CDF]
+            self.logger.experiment.log_figure(figure_name='val_location_error_cdf', figure=cdf_plot)
+            
 
         # reset metrics
         self.val_metrics.reset()

@@ -7,6 +7,9 @@ from utils.geometry_utils import wrap_to_pi
 import pdb
 import numpy as np
 from gps_cali import reverse_normalization
+import matplotlib.pyplot as plt
+
+
 
 class MetricNames:
     """Class to store all metrics that metrics calculator generates."""
@@ -23,7 +26,8 @@ class MetricNames:
     LOCATION_ERROR_99_PERCENTILE = "location_error_99_percentile"
     LOCATION_PREDS = "location_preds"
     LOCATION_TARGETS = "location_targets"
-
+    LOCATION_ERROR_CDF = "location_error_cdf_figure"
+   
 
 class AoAAccuracy(Metric):
     """This class computes mean and standard deviation of AoA error.
@@ -123,6 +127,8 @@ class LocationAccuracy(Metric):
         percentile_90_error = torch.quantile(errors_m, 0.90)
         percentile_99_error = torch.quantile(errors_m, 0.99)
 
+        cdf_fig = plot_location_error_cdf(errors_m)
+
         return {
             MetricNames.LOCATION_ERROR_MEAN: mean_error,
             MetricNames.LOCATION_ERROR_MEDIAN: median_error,
@@ -130,7 +136,8 @@ class LocationAccuracy(Metric):
             MetricNames.LOCATION_ERROR_90_PERCENTILE: percentile_90_error,
             MetricNames.LOCATION_ERROR_99_PERCENTILE: percentile_99_error,
             MetricNames.LOCATION_PREDS: preds_tensor,
-            MetricNames.LOCATION_TARGETS: targets_tensor
+            MetricNames.LOCATION_TARGETS: targets_tensor,
+            MetricNames.LOCATION_ERROR_CDF: cdf_fig
         }
 
 # def measure(lat1, lon1, lat2, lon2):
@@ -185,6 +192,61 @@ def measure(lat1, lon1, lat2, lon2):
     r = 6378.137  # Radius of Earth in km
     return (r * c) * 1000  # Distance in meters
 
+
+def plot_location_error_cdf(location_errors: torch.Tensor, max_error: float = 10.0) -> plt.Figure:
+    """
+    Plot the CDF of location errors.
+    
+    Args:
+        location_errors: Tensor containing all location errors in meters
+        max_error: Maximum error value to display on x-axis (default: 10 meters)
+        
+    Returns:
+        matplotlib Figure object
+    """
+    # Convert to numpy array if it's a tensor
+    if isinstance(location_errors, torch.Tensor):
+        errors = location_errors.cpu().numpy()
+    else:
+        errors = np.array(location_errors)
+    
+    # Sort the errors
+    sorted_errors = np.sort(errors)
+    
+    # Calculate cumulative probabilities
+    n = len(sorted_errors)
+    y = np.arange(1, n + 1) / n
+    
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot the CDF
+    ax.plot(sorted_errors, y, marker='.', linestyle='none', markersize=5)
+    
+    # Add a line for better visibility
+    ax.plot(sorted_errors, y, 'b-', alpha=0.5)
+    
+    # Set axis limits and labels
+    ax.set_xlim(0, max_error)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel('Location Error (meters)')
+    ax.set_ylabel('Cumulative Probability')
+    ax.set_title('CDF of Location Errors')
+    
+    # Add grid
+    ax.grid(True, which='both', linestyle='--', alpha=0.5)
+    
+    # Add important percentiles
+    for percentile in [50, 75, 90, 95]:
+        value = np.percentile(errors, percentile)
+        ax.axvline(x=value, color='r', linestyle='--', alpha=0.5)
+        ax.text(value, 0.1, f'{percentile}%: {value:.2f}m', 
+                rotation=90, verticalalignment='bottom')
+    
+    plt.tight_layout()
+    return fig
+
+
 if __name__ == "__main__":
     from torchmetrics import MetricCollection
     # Test the AoAAccuracy class
@@ -227,3 +289,5 @@ if __name__ == "__main__":
     # The mean AoA error is -0.1 for all APs and the standard deviation is 0 for all APs.
 
     # test metrics collection
+
+
