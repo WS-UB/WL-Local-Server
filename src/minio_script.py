@@ -37,6 +37,14 @@ def store_received_data(received_data, bucket_name="wl-data"):
         serialized_gps = (
             json.dumps(gps_value) if not isinstance(gps_value, str) else gps_value
         )
+
+        gps_rawValue = data[0].get("GPS_RAW", {})
+        serialized_gpsRaw = (
+            json.dumps(gps_rawValue)
+            if not isinstance(gps_rawValue, str)
+            else gps_rawValue
+        )
+
         wifi_value = data[0].get("WiFi", {})
         serialized_wifi = (
             json.dumps(wifi_value) if not isinstance(wifi_value, str) else wifi_value
@@ -59,6 +67,7 @@ def store_received_data(received_data, bucket_name="wl-data"):
             "timestamp": [timestamp],
             "IMU": [json.dumps(data[0].get("IMU", {}))],
             "GPS": [serialized_gps],
+            "GPS_RAW": [serialized_gpsRaw],
             "WiFi": [serialized_wifi],
             "ground_truth": [serialized_ground_truth],  # Ensure it's added correctly
         }

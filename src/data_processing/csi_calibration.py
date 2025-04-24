@@ -88,12 +88,16 @@ def retrieve_csi(bucket_name="wl-data"):
             timestamp = data["timestamp"][0]
             imu = data["IMU"].apply(json.loads)
             gps = data["GPS"].apply(json.loads)
+            gpsRaw = data["GPS_RAW"].apply(json.loads)
             data["WiFi"] = data["WiFi"].apply(json.loads)
 
             gyro_xyz = imu[0]["gyro"]
             accel_xyz = imu[0]["accel"]
             GPS_lat = gps[0]["latitude"]
             GPS_long = gps[0]["longitude"]
+
+            GPS_RAW_lat = gpsRaw[0]["latitude"]
+            GPS_RAW_long = gpsRaw[0]["longitude"]
 
             for wifi_data in data["WiFi"]:
                 heatmaps = []
@@ -154,6 +158,8 @@ def retrieve_csi(bucket_name="wl-data"):
                             accel_xyz=accel_xyz,
                             GPS_lat=GPS_lat,
                             GPS_long=GPS_long,
+                            GPS_RAW_lat=GPS_RAW_lat,
+                            GPS_RAW_long=GPS_RAW_long,
                             heatmaps=heatmaps,
                             apLoc=apLoc,
                             apL1=apL1,
@@ -173,6 +179,8 @@ def send_heatmaps(
     accel_xyz,
     GPS_lat,
     GPS_long,
+    GPS_RAW_lat,
+    GPS_RAW_long,
     heatmaps,
     apLoc,
     apL1,
@@ -189,6 +197,7 @@ def send_heatmaps(
                 "timestamp": timestamp,
                 "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
                 "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
+                "GPS_RAW": {"latitude": GPS_RAW_lat, "longitude": GPS_RAW_long},
                 "WiFi": {
                     "WiFi-AP-1_HEATMAP": heatmaps[0],
                     "WiFi-AP-2_HEATMAP": heatmaps[1],
