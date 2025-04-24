@@ -5,6 +5,8 @@ import torch
 from utils.schema import ModelOutput, GTlabel
 from utils.geometry_utils import wrap_to_pi
 import pdb
+import numpy as np
+from gps_cali import reverse_normalization
 
 class MetricNames:
     """Class to store all metrics that metrics calculator generates."""
@@ -84,7 +86,6 @@ class AoAAccuracy(Metric):
                 MetricNames.AOA_TARGETS: targets_tensor,
                 MetricNames.AOA_ERRORS_ALL: aoa_error_tensor}
 
-
 class LocationAccuracy(Metric):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -103,14 +104,24 @@ class LocationAccuracy(Metric):
             A dictionary containing the computed metrics. Also return the prediction and target tensors for
             plotting purpose.
         """
+
         preds_tensor = torch.cat(self.preds, dim=0) # shape: (n_samples, 2)
         targets_tensor = torch.cat(self.targets, dim=0) # shape: (n_samples, 2)
-        errors = torch.norm(preds_tensor - targets_tensor, dim=1)
-        mean_error = errors.mean()
-        median_error = errors.median()
-        std_error = errors.std()
-        percentile_90_error = torch.quantile(errors, 0.90)
-        percentile_99_error = torch.quantile(errors, 0.99)
+
+        reversed_preds_tensor = reverse_normalization(preds_tensor[:, 0], preds_tensor[:, 1])
+        reversed_targets_tensor = reverse_normalization(targets_tensor[:, 0], targets_tensor[:, 1])
+
+        # errors = torch.norm(preds_tensor - targets_tensor, dim=1) #uses the distance formula to get the error in lat/lon
+        errors_m = measure(reversed_preds_tensor[:, 0], 
+                    reversed_preds_tensor[:, 1], 
+                    reversed_targets_tensor[:, 0], 
+                    reversed_targets_tensor[:, 1])
+        
+        mean_error = errors_m.mean()
+        median_error = errors_m.median()
+        std_error = errors_m.std()
+        percentile_90_error = torch.quantile(errors_m, 0.90)
+        percentile_99_error = torch.quantile(errors_m, 0.99)
 
         return {
             MetricNames.LOCATION_ERROR_MEAN: mean_error,
@@ -121,6 +132,58 @@ class LocationAccuracy(Metric):
             MetricNames.LOCATION_PREDS: preds_tensor,
             MetricNames.LOCATION_TARGETS: targets_tensor
         }
+
+# def measure(lat1, lon1, lat2, lon2):
+#     """Calculate the distance between two GPS coordinates using the Haversine formula.
+
+#     Args: 
+#         lat1: Latitude of the first point in degrees.
+#         lon1: Longitude of the first point in degrees.
+#         lat2: Latitude of the second point in degrees.
+#         lon2: Longitude of the second point in degrees.
+
+#     Returns:
+#         Distance in meters.
+#     """
+#     r = 6378.137  # Radius of Earth in meters
+#     dLat = np.radians(lat2 - lat1)
+#     dLon = np.radians(lon2 - lon1)
+#     a = (np.sin(dLat / 2) ** 2 +
+#          np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) *
+#          (np.sin(dLon / 2) ** 2))
+#     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+#     d = r * c  # Distance in meters
+#     return d * 1000  # Convert to meters
+
+def measure(lat1, lon1, lat2, lon2):
+    """Calculate the distance between two GPS coordinates using the Haversine formula.
+    
+    Args: 
+        lat1: Latitude of the first point in degrees (tensor)
+        lon1: Longitude of the first point in degrees (tensor)
+        lat2: Latitude of the second point in degrees (tensor)
+        lon2: Longitude of the second point in degrees (tensor)
+    
+    Returns:
+        Distance in meters as a tensor.
+    """
+    # Convert to radians
+    lat1_rad = torch.deg2rad(lat1)
+    lon1_rad = torch.deg2rad(lon1)
+    lat2_rad = torch.deg2rad(lat2)
+    lon2_rad = torch.deg2rad(lon2)
+    
+    # Haversine formula using PyTorch operations
+    dLat = lat2_rad - lat1_rad
+    dLon = lon2_rad - lon1_rad
+    
+    a = (torch.sin(dLat / 2) ** 2 + 
+         torch.cos(lat1_rad) * torch.cos(lat2_rad) * 
+         torch.sin(dLon / 2) ** 2)
+    
+    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
+    r = 6378.137  # Radius of Earth in km
+    return (r * c) * 1000  # Distance in meters
 
 if __name__ == "__main__":
     from torchmetrics import MetricCollection
