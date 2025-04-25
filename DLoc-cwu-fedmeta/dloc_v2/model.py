@@ -290,6 +290,11 @@ class TrigAOAResNetModel(pl.LightningModule):
         # compute metrics
         metrics_result = self.val_metrics.compute()
 
+        if MetricNames.LOCATION_CDF_ERROR in metrics_result:
+            cdf_plot = metrics_result[MetricNames.LOCATION_CDF_ERROR]
+            self.logger.experiment.log_figure(figure_name='val_location_cdf_error_figure', figure=cdf_plot)
+            plt.close(cdf_plot)  # Add this line to clean up memory
+
         # log AoA error metrics
         for ap_index in range(self.ap_metadata.n_aps):
             self.log_dict({f'val_aoa_error_mean_ap{ap_index}': metrics_result[MetricNames.AOA_ERROR_MEAN][ap_index].item(),
@@ -299,10 +304,7 @@ class TrigAOAResNetModel(pl.LightningModule):
         # log location error metrics
         for metrics_name, metrics_value in metrics_result.items():
             if metrics_name.startswith('location_error'):
-                self.log(f"val_{metrics_name}", metrics_value.item())
-            elif metrics_name == MetricNames.LOCATION_ERROR_CDF:
-            # Skip logging the figure here - we'll handle it separately
-                continue
+                self.log(f"val_{metrics_name}", metrics_value.item() if isinstance(metrics_value, torch.Tensor) else metrics_value)
 
         # log the visualization data very self.display_viz_data_epoch_interval epoch
 
@@ -336,9 +338,9 @@ class TrigAOAResNetModel(pl.LightningModule):
                                                       plot_in_degrees=True)
             self.logger.experiment.log_figure(figure_name='val_aoa_gt_vs_pred', figure=aoa_gt_vs_pred_plot)
 
-        if MetricNames.LOCATION_ERROR_CDF in metrics_result:
-            cdf_plot = metrics_result[MetricNames.LOCATION_ERROR_CDF]
-            self.logger.experiment.log_figure(figure_name='val_location_error_cdf', figure=cdf_plot)
+        if MetricNames.LOCATION_CDF_ERROR in metrics_result:
+            cdf_plot = metrics_result[MetricNames.LOCATION_CDF_ERROR]
+            self.logger.experiment.log_figure(figure_name='val_location_cdf_error', figure=cdf_plot)
             
 
         # reset metrics
