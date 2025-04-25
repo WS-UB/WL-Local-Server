@@ -88,7 +88,7 @@ def retrieve_csi(bucket_name="wl-data"):
             timestamp = data["timestamp"][0]
             imu = data["IMU"].apply(json.loads)
             gps = data["GPS"].apply(json.loads)
-            # gpsRaw = data["GPS_RAW"].apply(json.loads)
+            gpsRaw = data["GPS_RAW"].apply(json.loads)
             data["WiFi"] = data["WiFi"].apply(json.loads)
 
             gyro_xyz = imu[0]["gyro"]
@@ -96,8 +96,8 @@ def retrieve_csi(bucket_name="wl-data"):
             GPS_lat = gps[0]["latitude"]
             GPS_long = gps[0]["longitude"]
 
-            # GPS_RAW_lat = gpsRaw[0]["latitude"]
-            # GPS_RAW_long = gpsRaw[0]["longitude"]
+            GPS_RAW_lat = gpsRaw[0]["latitude"]
+            GPS_RAW_long = gpsRaw[0]["longitude"]
 
             for wifi_data in data["WiFi"]:
                 heatmaps = []
@@ -158,6 +158,8 @@ def retrieve_csi(bucket_name="wl-data"):
                             accel_xyz=accel_xyz,
                             GPS_lat=GPS_lat,
                             GPS_long=GPS_long,
+                            GPS_RAW_lat=GPS_RAW_lat,
+                            GPS_RAW_long=GPS_RAW_long,
                             heatmaps=heatmaps,
                             apLoc=apLoc,
                             apL1=apL1,
@@ -177,6 +179,8 @@ def send_heatmaps(
     accel_xyz,
     GPS_lat,
     GPS_long,
+    GPS_RAW_lat,
+    GPS_RAW_long,
     heatmaps,
     apLoc,
     apL1,
@@ -193,6 +197,7 @@ def send_heatmaps(
                 "timestamp": timestamp,
                 "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
                 "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
+                "GPS_RAW": {"latitude": GPS_RAW_lat, "longitude": GPS_RAW_long},
                 "WiFi": {
                     "WiFi-AP-1_HEATMAP": heatmaps[0],
                     "WiFi-AP-2_HEATMAP": heatmaps[1],
@@ -466,8 +471,16 @@ def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
 
 
 def plot_histogram(data, folderName):
+
     save_dir = os.path.join(
-        "home/wiloc/Documents/WL-Local-Server/heatmap_data", folderName
+        "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", "histogram"
+    )
+    if os.path.exists(save_dir):
+        shutil.rmtree(save_dir)  # Deletes the whole directory and contents
+    os.makedirs(save_dir)
+
+    save_dir = os.path.join(
+        "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folderName
     )
 
     filename = "histogram.jpg"
@@ -479,9 +492,13 @@ def plot_histogram(data, folderName):
     plt.hist(data, bins=30, edgecolor="black")
 
     # Add labels and title
-    plt.xlabel("(AoAGT - rawAoA)")
-    plt.ylabel("Frequency")
-    plt.title("Histogram")
+    plt.xlabel("(AoAGT - rawAoA)", fontsize=15)
+    plt.ylabel("Frequency", fontsize=15)
+
+    plt.xticks(fontsize=15)
+    plt.yticks(fontsize=15)
+
+    plt.title("Histogram", fontsize=15)
 
     # Show the plot
     plt.savefig(filepath, dpi=300, bbox_inches="tight")
