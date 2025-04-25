@@ -305,6 +305,9 @@ class TrigAOAResNetModel(pl.LightningModule):
         for metrics_name, metrics_value in metrics_result.items():
             if metrics_name.startswith('location_error'):
                 self.log(f"val_{metrics_name}", metrics_value.item() if isinstance(metrics_value, torch.Tensor) else metrics_value)
+            elif metrics_name == MetricNames.LOCATION_CDF_ERROR:
+            # Skip logging the figure here - we'll handle it separately
+                continue
 
         # log the visualization data very self.display_viz_data_epoch_interval epoch
 

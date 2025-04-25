@@ -176,9 +176,7 @@ if __name__ == "__main__":
     heatmap, aoa, gps = ds[idx - 1]
     print("\nSample data:")
     print(f" • heatmap shape: {heatmap.shape}")
-    
-    
-    print(f" • AoA ground truth: {aoa[0].item():.2f}")
+    print(f" • AoA ground truth: {aoa.item():.2f}")
     print(f" • Normalized GPS: lat={gps[0].item():.6f}, lon={gps[1].item():.6f}")
 
     # 6) Optional visualize first AP
