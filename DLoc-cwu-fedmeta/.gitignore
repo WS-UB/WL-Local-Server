@@ -15,6 +15,7 @@ matlab/test_*
 *.m~
 *.DS_Store
 *.yaml
+*.parquet
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -130,6 +131,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+dloc_v2/.env
 
 # Spyder project settings
 .spyderproject
@@ -187,3 +189,4 @@ codegen/
 
 # Octave session info
 octave-workspace
+
