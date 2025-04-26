@@ -334,76 +334,6 @@ def calibrate_csi(
     return stringComplex
 
 
-def uncalibrated_csi(
-    ap_name,
-    csi_i: list[float],
-    csi_r: list[float],
-    aoaGT: float,
-    folderName: str,
-    timestamp: str,
-    csi_compensated: list[float] = None,
-):
-
-    # csi_complex = extract_csi(
-    #     80, csi_i=csi_i, csi_r=csi_r, apply_nts=True, comp=csi_compensated
-    # )[:, :, 0]
-
-    # csi_complex = np.squeeze(csi_complex)
-
-    # Hcomp = csi_complex
-    # np.save(join(OUT, f"comp-{random.randint(1, 10)}.npy"), Hcomp)
-
-    fs = 8e6  # ADC sampling frequency in Hz
-    N_subfrequencies = len(
-        get_channel_frequencies(155, 80e6)
-    )  # Number of samples per chirp
-    fc, freqs_subcarriers = get_channel_frequencies(155, 80e6)
-    k = 2 * np.pi * np.mean(N_subfrequencies) / (C)  # Slope (Hz/s)
-
-    # Time and frequency axes
-    Ts = 1 / fs  # Sampling period
-    t = np.arange(0, N_subfrequencies) * Ts  # Time axis
-    delta_freqs = np.arange(0, fs, fs / N_subfrequencies)  # Frequency axis
-    delta_est = delta_freqs / k  # Slope-based estimation
-    # distance_range = delta_est * C  # Convert to distance
-
-    exponent_range = np.exp(
-        (
-            1j
-            * 2
-            * np.pi
-            * DISTANCES.reshape(400, 1)
-            @ freqs_subcarriers.reshape(234, 1).T
-            / C
-        )
-    )
-
-    rangeFFT = exponent_range @ csi_compensated[:, :, 0]
-    exponent_AoA = np.exp(
-        (1j * 2 * np.pi * fc * d / C)
-        * np.arange(1, N_Rx + 1)[:, None]
-        @ np.sin(np.radians(ANGLES.reshape(360, 1))).T
-    )
-
-    AoARangeFFT = rangeFFT @ exponent_AoA  # 400x360 matrix
-    plt.figure(2)
-    plt.xlabel("Range (m)")
-    plt.ylabel("AoA (°)")
-    plt.title(f"AoA vs Range Compensated Heatmap ({ap_name})")
-    plt.imshow(
-        np.abs(AoARangeFFT).T,
-        aspect="auto",
-        extent=[
-            DISTANCES.min(),
-            DISTANCES.max(),
-            ANGLES.min(),
-            ANGLES.max(),
-        ],
-        origin="lower",
-    )
-    plt.show()
-
-
 def plot_csiGraph(csiFFT, ap_name):
     plt.figure(1)
     plt.plot(DISTANCES, np.abs(csiFFT))
@@ -507,9 +437,6 @@ def plot_histogram(data, folderName):
 
 def main():
     retrieve_csi()
-    # print(len(HISTOGRAM))
-    # folder = "histogram"
-    # plot_histogram(HISTOGRAM, folder)
     print("\nHeatmaps have been successfully generated!")
 
 
