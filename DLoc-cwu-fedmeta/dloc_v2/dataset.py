@@ -1,79 +1,114 @@
 import torch
 from torch.utils.data import Dataset
 import numpy as np
-from typing import Optional, Callable
+from typing import Optional, Callable, List, Dict, Union
 import pandas as pd
 import json
 from dotenv import load_dotenv
 from gps_cali import normalize_gps
 from fetchdata import fetch_selected_parquet_from_minio, fetch_and_split_parquet_from_minio
+from minio import Minio
+import os
+from io import BytesIO
 
+load_dotenv()
+BUCKET = os.getenv("MINIO_BUCKET")
+
+def get_minio_client():
+    load_dotenv()
+    return Minio(
+        os.getenv("MINIO_ENDPOINT"),
+        access_key=os.getenv("MINIO_ACCESS_KEY"),
+        secret_key=os.getenv("MINIO_SECRET_KEY"),
+        secure=os.getenv("MINIO_SECURE", "false").lower() == "true"
+    )
 
 class DLocDatasetV2(Dataset):
-    def __init__(self, parquet_file_path: str, transform: Optional[Callable] = None):
-        self.df = pd.read_parquet(parquet_file_path)
+    """Loads one sample per parquet from MinIO, based on a CSV index."""
+
+    def __init__(self, index_csv: str, transform=None):
+        """
+        Args:
+            index_csv: CSV with columns ['index','folder','file_name','file_path']
+            bucket_name: the MinIO bucket to pull from
+            transform: optional torch transform for the heatmap tensor
+        """
+    
+        self.bucket = BUCKET
+        self._client = None
+    
+        self.index_df = pd.read_csv(index_csv)
+        if 'file_path' not in self.index_df:
+            raise ValueError(f"'file_path' column missing in {index_csv}")
+
+        # Full list of MinIO object names, e.g. "my-folder/subfolder/my.parquet"
+        self.file_paths = self.index_df['file_path'].tolist()
+        #self.client = get_minio_client()
         self.transform = transform
-        # Define the reshape dimensions for heatmaps (range, angle)
+
         self.heatmap_dims = (400, 360)
-        self.ap_names = ["WiFi-AP-1_HEATMAP", "WiFi-AP-2_HEATMAP", "WiFi-AP-3_HEATMAP"]
+        self.ap_names = [
+            "WiFi-AP-1_HEATMAP",
+            "WiFi-AP-2_HEATMAP",
+            "WiFi-AP-3_HEATMAP",
+        ]
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = get_minio_client()
+        return self._client
 
     def __len__(self):
-        return len(self.df)
+        return len(self.file_paths)
 
     def __getitem__(self, idx: int):
-        row = self.df.iloc[idx]
+        # 1) Fetch the parquet bytes from MinIO
+        obj_name = self.file_paths[idx]
+        obj = self.client.get_object(self.bucket, obj_name)
+        buf = BytesIO(obj.read())
 
-        wifi_data = json.loads(row['WiFi'])
-        
-        # Initialize a list to store heatmaps from all APs
-        all_heatmaps = []
-        
-        # Extract heatmap data from each AP
-        for ap_name in self.ap_names:
-            if ap_name in wifi_data:
-                # Extract complex heatmap data
-                heatmap_str = wifi_data[ap_name]
-                
-                # Convert string representation of complex numbers back to complex values
-                # Parse each complex number string and reconstruct the array
-                heatmap_complex = np.array([complex(val) for val in heatmap_str], dtype=np.complex64)
-                
-                # Reshape to the heatmap dimensions
-                heatmap_reshaped = heatmap_complex.reshape(self.heatmap_dims)
-                
-                # Extract magnitude (amplitude) of the heatmap
-                heatmap_magnitude = np.abs(heatmap_reshaped)
-                
-                # Append to list of heatmaps
-                all_heatmaps.append(heatmap_magnitude)
+        # 2) Load the single-row parquet
+        df = pd.read_parquet(buf)
+        row = df.iloc[0]
+
+        # 3) Parse WiFi JSON → heatmaps
+        wifi = json.loads(row['WiFi'])
+        heatmaps = []
+        for ap in self.ap_names:
+            if ap in wifi:
+                arr = np.array([complex(v) for v in wifi[ap]], dtype=np.complex64)
+                arr = arr.reshape(self.heatmap_dims)
+                heatmaps.append(np.abs(arr))
             else:
-                # If this AP's data is missing, use zeros
-                all_heatmaps.append(np.zeros(self.heatmap_dims, dtype=np.float32))
-        
-        # Stack all heatmaps along a new dimension
-        combined_heatmaps = np.stack(all_heatmaps, axis=0)
-        
-        # Pull out AoA ground truth
-        aoa_val = float(wifi_data.get("AoA Ground Truth", 0.0))
-        aoa_tensor = torch.tensor(aoa_val, dtype=torch.float32)
+                heatmaps.append(np.zeros(self.heatmap_dims, dtype=np.float32))
 
-        # Get GPS data
-        gps_data = json.loads(row['GPS'])
-        # Normalize GPS data
-        norm_gps = normalize_gps(gps_data)
-        gps_tensor = torch.tensor(norm_gps, dtype=torch.float32)
-
-        # Convert to torch tensors
-        heatmap_tensor = torch.from_numpy(combined_heatmaps.astype(np.float32))
-
+        combined = np.stack(heatmaps, axis=0).astype(np.float32)
+        heatmap_tensor = torch.from_numpy(combined)
         if self.transform:
             heatmap_tensor = self.transform(heatmap_tensor)
+
+        # 4) AoA
+        aoa = float(wifi.get("AoA Ground Truth", 0.0))
+        aoa_tensor = torch.full((len(self.ap_names),), aoa, dtype=torch.float32)
+
+        # 5) GPS → normalize → tensor
+        gps_raw = json.loads(row['GPS'])
+        gps_norm = normalize_gps(gps_raw)
+        gps_tensor = torch.tensor(gps_norm, dtype=torch.float32)
 
         return heatmap_tensor, aoa_tensor, gps_tensor
 
     @staticmethod
-    def process_parquet_file(parquet_file_path: str):
-        df = pd.read_parquet(parquet_file_path)
+    def process_dataframe(df: pd.DataFrame):
+        """
+        Process a pandas DataFrame containing WiFi and GPS data
+        
+        Args:
+            df: Pandas DataFrame with WiFi and GPS columns
+            
+        Returns:
+            Tuple of (heatmaps, aoa values, gps coordinates)
+        """
         all_heatmaps = []
         all_gps = []
         all_aoa = []
@@ -104,50 +139,61 @@ class DLocDatasetV2(Dataset):
             all_gps.append(gps_coords)
 
         return all_heatmaps, all_aoa, all_gps
+    
+
 
 
 
 if __name__ == "__main__":
-    mode = input("Do you want to 'load' data or 'process' data? (type 'load' or 'process'): ").strip().lower()
-    if mode == "process":
-        splits = fetch_and_split_parquet_from_minio(max_workers=8)
-        if splits:
-            print("\n✅ Files have been split and downloaded as follows:")
-            print(f"Train files: {len(splits['train'])}")
-            print(f"Validation files: {len(splits['val'])}")
-            print(f"Test files: {len(splits['test'])}")
-        else:
-            print("❌ Processing failed; no files were split.")
-    else:
-        # Default is 'load' mode, which preserves the current functionality
-        path = fetch_selected_parquet_from_minio()
-        if path:
-            dataset = DLocDatasetV2(parquet_file_path=path)
-            print(f"✅ Loaded {len(dataset)} samples from {path}")
-        else:
-            print("❌ Failed to download a file from MinIO.")
-            exit(1)
+    import matplotlib.pyplot as plt
 
-        print(f"Dataset length: {len(dataset)}")
-        
-        # Get the first sample
-        heatmaps, aoa_tensor, norm_gps = dataset[0]
-        print(f"Heatmaps shape: {heatmaps.shape}")  # Should be [3, 400, 360]
-        print(f"Aoa Ground Truth: {aoa_tensor}")
-        print(f"Normalized GPS: {norm_gps}")
+    # 1) Prompt only for CSV index path
+    csv_path = input("CSV index path (e.g. data/parquet_index.csv): ").strip()
 
-        # Visualize a heatmap (optional)
-        import matplotlib.pyplot as plt
-        
-        plt.figure(figsize=(10, 8))
-        plt.imshow(
-            heatmaps[0].numpy(),  # Display the first AP's heatmap
-            aspect='auto',
-            extent=[-30, 30, -90, 90],  # Based on DISTANCES and ANGLES from original code
-            origin='lower'
-        )
-        plt.colorbar(label='Magnitude')
-        plt.xlabel('Range (m)')
-        plt.ylabel('AoA (°)')
-        plt.title('Heatmap from WiFi-AP-1')
+    # 2) Hardcode the bucket name
+    
+
+    # 3) Instantiate
+    try:
+        ds = DLocDatasetV2(index_csv=csv_path, transform=None)
+    except Exception as e:
+        print(f"❌ Failed to load dataset: {e}")
+        exit(1)
+
+    print(f"✅ Loaded dataset from bucket '{BUCKET}' with {len(ds)} samples.")
+
+    # 4) Prompt for which sample to inspect (1-based)
+    n = len(ds)
+    idx_input = input(f"Enter sample index to inspect [1–{n}]: ").strip()
+    try:
+        idx = int(idx_input)
+        assert 1 <= idx <= n
+    except:
+        print("❌ Invalid index. Must be between 1 and", n)
+        exit(1)
+
+    # 5) Fetch and display
+    heatmap, aoa, gps = ds[idx - 1]
+    print("\nSample data:")
+    print(f" • heatmap shape: {heatmap.shape}")
+    print(f" • AoA ground truth: {aoa.item():.2f}")
+    print(f" • Normalized GPS: lat={gps[0].item():.6f}, lon={gps[1].item():.6f}")
+
+    # 6) Optional visualize first AP
+    if input("\nVisualize all 3 AP heatmaps? (y/n): ").strip().lower() == 'y':
+        ap_names = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
+        for i, ax in enumerate(axes):
+            ax.imshow(
+                heatmap[i].numpy(),
+                origin="lower",
+                aspect="auto",
+                extent=[0, 5, -90, 90]
+            )
+            ax.set_title(f"Sample {idx_input} {ap_names[i]} Heatmap")
+            ax.set_xlabel('Range (m)')
+            if i == 0:
+                ax.set_ylabel('AoA (°)')
+        plt.tight_layout()
         plt.show()
+    

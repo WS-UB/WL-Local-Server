@@ -190,3 +190,5 @@ codegen/
 # Octave session info
 octave-workspace
 
+# Ignore data files
+/dloc_v2/data

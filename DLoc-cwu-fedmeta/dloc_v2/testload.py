@@ -49,7 +49,7 @@ def parquet_to_txt(input_path, output_path=None, max_rows=None):
         return None
 
 # Usage example
-input_file = "./data/new.parquet"  # Replace with your Parquet file path
+input_file = "./data/2025-04-20 18_01_03.006 (1).parquet"  # Replace with your Parquet file path
 output_file = "./data/new.txt"  # Optional - will auto-generate if None
 
 result_path = parquet_to_txt(input_file, output_file)
