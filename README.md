@@ -119,12 +119,34 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 
 ```
 
-- When in the WILOC server, run the following command:
+- When in the WILOC server, run the following to check the status of the MinIO server:
 
 ```
-        MINIO_ROOT_USER=admin MINIO_ROOT_PASSWORD=password ./minio server /mnt/data --console-address ":9001"
+        sudo systemctl status minio
 ```
 
+- If the MinIO server is running without issue, it should display the following:
+
+```
+        ● minio.service - MinIO
+     Loaded: loaded (/etc/systemd/system/minio.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2025-04-30 14:40:54 EDT; 3min 54s ago
+       Docs: https://docs.min.io
+   Main PID: 121271 (minio)
+      Tasks: 37 (limit: 38162)
+     Memory: 345.7M
+     CGroup: /system.slice/minio.service
+```
+
+- If not, run the following to restart the MinIO server:
+
+```
+        sudo systemctl daemon-reload
+        sudo systemctl start minio
+        sudo systemctl enable minio
+```
+
+- Check the status of MinIO again and the server should now be active.
 ### 4: Run the IMU/GPS/WiFi synchronizer
 
 1. In a separate terminal, ssh into the WILOC server.
