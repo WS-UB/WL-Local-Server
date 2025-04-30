@@ -14,7 +14,6 @@ import shutil
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from src.data_processing.constants import (
-    subcarrier_indices,
     subcarrier_width,
     get_channel_frequencies,
 )
@@ -88,16 +87,12 @@ def retrieve_csi(bucket_name="wl-data"):
             timestamp = data["timestamp"][0]
             imu = data["IMU"].apply(json.loads)
             gps = data["GPS"].apply(json.loads)
-            gpsRaw = data["GPS_RAW"].apply(json.loads)
             data["WiFi"] = data["WiFi"].apply(json.loads)
 
             gyro_xyz = imu[0]["gyro"]
             accel_xyz = imu[0]["accel"]
             GPS_lat = gps[0]["latitude"]
             GPS_long = gps[0]["longitude"]
-
-            GPS_RAW_lat = gpsRaw[0]["latitude"]
-            GPS_RAW_long = gpsRaw[0]["longitude"]
 
             for wifi_data in data["WiFi"]:
                 heatmaps = []
@@ -139,16 +134,6 @@ def retrieve_csi(bucket_name="wl-data"):
                         csi_compensated=csi_compensated,
                     )
 
-                    # heatmap = uncalibrated_csi(
-                    #     ap_name,
-                    #     csi_i_flattened,
-                    #     csi_r_flattened,
-                    #     aoaGT=aoaGT,
-                    #     folderName=folder,
-                    #     timestamp=timestamp,
-                    #     csi_compensated=csi_compensated,
-                    # )
-
                     heatmaps.append(heatmap)
                     if len(heatmaps) == 3:
                         send_heatmaps(
@@ -158,8 +143,6 @@ def retrieve_csi(bucket_name="wl-data"):
                             accel_xyz=accel_xyz,
                             GPS_lat=GPS_lat,
                             GPS_long=GPS_long,
-                            GPS_RAW_lat=GPS_RAW_lat,
-                            GPS_RAW_long=GPS_RAW_long,
                             heatmaps=heatmaps,
                             apLoc=apLoc,
                             apL1=apL1,
@@ -179,8 +162,6 @@ def send_heatmaps(
     accel_xyz,
     GPS_lat,
     GPS_long,
-    GPS_RAW_lat,
-    GPS_RAW_long,
     heatmaps,
     apLoc,
     apL1,
@@ -197,7 +178,6 @@ def send_heatmaps(
                 "timestamp": timestamp,
                 "IMU": {"gyro": gyro_xyz, "accel": accel_xyz},
                 "GPS": {"latitude": GPS_lat, "longitude": GPS_long},
-                "GPS_RAW": {"latitude": GPS_RAW_lat, "longitude": GPS_RAW_long},
                 "WiFi": {
                     "WiFi-AP-1_HEATMAP": heatmaps[0],
                     "WiFi-AP-2_HEATMAP": heatmaps[1],
@@ -401,24 +381,6 @@ def plot_heatmaps(heatmap, aoaGT, apName, folderName, timestamp):
 
 
 def plot_histogram(data, folderName):
-
-    save_dir = os.path.join(
-        "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", "histogram"
-    )
-    if os.path.exists(save_dir):
-        shutil.rmtree(save_dir)  # Deletes the whole directory and contents
-    os.makedirs(save_dir)
-
-    save_dir = os.path.join(
-        "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folderName
-    )
-
-    filename = "histogram.jpg"
-    filepath = os.path.join(save_dir, filename)
-
-    # Create bins that step by 25
-    # bins = np.arange(0, max(data) + 10, 10)
-    # Plot histogram
     plt.hist(data, bins=30, edgecolor="black")
 
     # Add labels and title
@@ -431,12 +393,12 @@ def plot_histogram(data, folderName):
     plt.title("Histogram", fontsize=15)
 
     # Show the plot
-    plt.savefig(filepath, dpi=300, bbox_inches="tight")
     plt.show()
 
 
 def main():
     retrieve_csi()
+    plot_histogram(HISTOGRAM, "histogram")
     print("\nHeatmaps have been successfully generated!")
 
 

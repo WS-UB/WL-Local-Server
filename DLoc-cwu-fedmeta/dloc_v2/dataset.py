@@ -4,17 +4,18 @@ import numpy as np
 from typing import Optional, Callable
 import pandas as pd
 import json
-import re
-import os
-from minio import Minio
-from io import BytesIO
+from dotenv import load_dotenv
+from gps_cali import normalize_gps
+from fetchdata import fetch_selected_parquet_from_minio, fetch_and_split_parquet_from_minio
+
 
 class DLocDatasetV2(Dataset):
     def __init__(self, parquet_file_path: str, transform: Optional[Callable] = None):
         self.df = pd.read_parquet(parquet_file_path)
         self.transform = transform
-        # Define the reshape dimensions (n_subcarriers, n_rx, n_tx)
-        self.reshape_dims = (256, 4, 4)
+        # Define the reshape dimensions for heatmaps (range, angle)
+        self.heatmap_dims = (400, 360)
+        self.ap_names = ["WiFi-AP-1_HEATMAP", "WiFi-AP-2_HEATMAP", "WiFi-AP-3_HEATMAP"]
 
     def __len__(self):
         return len(self.df)
@@ -23,112 +24,130 @@ class DLocDatasetV2(Dataset):
         row = self.df.iloc[idx]
 
         wifi_data = json.loads(row['WiFi'])
-        first_ap_data = next(iter(wifi_data.values()))
-
-        csi_i_string = first_ap_data[1]
-        csi_r_string = first_ap_data[2]
-
-        csi_i = np.array(re.findall(r"[-+]?\d*\.\d+|\d+", csi_i_string), dtype=np.float32)
-        csi_r = np.array(re.findall(r"[-+]?\d*\.\d+|\d+", csi_r_string), dtype=np.float32)
-
-        # Combine real and imaginary parts
-        csi_complex = csi_r + 1j * csi_i
         
-        # Reshape the CSI data
-        csi_reshaped = csi_complex.reshape(self.reshape_dims, order='F')
+        # Initialize a list to store heatmaps from all APs
+        all_heatmaps = []
         
-        # Get magnitude and phase (optional, can be removed if not needed)
-        csi_magnitude = np.abs(csi_reshaped)
-        csi_phase = np.angle(csi_reshaped)
+        # Extract heatmap data from each AP
+        for ap_name in self.ap_names:
+            if ap_name in wifi_data:
+                # Extract complex heatmap data
+                heatmap_str = wifi_data[ap_name]
+                
+                # Convert string representation of complex numbers back to complex values
+                # Parse each complex number string and reconstruct the array
+                heatmap_complex = np.array([complex(val) for val in heatmap_str], dtype=np.complex64)
+                
+                # Reshape to the heatmap dimensions
+                heatmap_reshaped = heatmap_complex.reshape(self.heatmap_dims)
+                
+                # Extract magnitude (amplitude) of the heatmap
+                heatmap_magnitude = np.abs(heatmap_reshaped)
+                
+                # Append to list of heatmaps
+                all_heatmaps.append(heatmap_magnitude)
+            else:
+                # If this AP's data is missing, use zeros
+                all_heatmaps.append(np.zeros(self.heatmap_dims, dtype=np.float32))
+        
+        # Stack all heatmaps along a new dimension
+        combined_heatmaps = np.stack(all_heatmaps, axis=0)
+        
+        # Pull out AoA ground truth
+        aoa_val = float(wifi_data.get("AoA Ground Truth", 0.0))
+        aoa_tensor = torch.tensor(aoa_val, dtype=torch.float32)
 
+        # Get GPS data
         gps_data = json.loads(row['GPS'])
-        gps_coords = np.array([gps_data['latitude'], gps_data['longitude']], dtype=np.float32)
+        # Normalize GPS data
+        norm_gps = normalize_gps(gps_data)
+        gps_tensor = torch.tensor(norm_gps, dtype=torch.float32)
 
         # Convert to torch tensors
-        csi_tensor = torch.from_numpy(csi_reshaped)  # or use csi_magnitude/csi_phase if preferred
-        gps_tensor = torch.from_numpy(gps_coords)
+        heatmap_tensor = torch.from_numpy(combined_heatmaps.astype(np.float32))
 
         if self.transform:
-            csi_tensor = self.transform(csi_tensor)
+            heatmap_tensor = self.transform(heatmap_tensor)
 
-        return csi_tensor, gps_tensor
+        return heatmap_tensor, aoa_tensor, gps_tensor
 
     @staticmethod
-    def process_parquet_file(parquet_file_path: str, return_reshaped=True):
+    def process_parquet_file(parquet_file_path: str):
         df = pd.read_parquet(parquet_file_path)
-        all_csi = []
+        all_heatmaps = []
         all_gps = []
-        reshape_dims = (256, 4, 4)
+        all_aoa = []
+        heatmap_dims = (400, 360)
+        ap_names = ["WiFi-AP-1_HEATMAP", "WiFi-AP-2_HEATMAP", "WiFi-AP-3_HEATMAP"]
 
         for _, row in df.iterrows():
             wifi_data = json.loads(row['WiFi'])
-            first_ap_data = next(iter(wifi_data.values()))
-
-            csi_i_string = first_ap_data[1]
-            csi_r_string = first_ap_data[2]
-
-            csi_i = np.array(re.findall(r"[-+]?\d*\.\d+|\d+", csi_i_string), dtype=np.float32)
-            csi_r = np.array(re.findall(r"[-+]?\d*\.\d+|\d+", csi_r_string), dtype=np.float32)
-
-            csi_complex = csi_r + 1j * csi_i
             
-            if return_reshaped:
-                # Reshape the CSI data
-                csi_complex = csi_complex.reshape(reshape_dims, order='F')
+            # Process each AP's heatmap
+            ap_heatmaps = []
+            for ap_name in ap_names:
+                if ap_name in wifi_data:
+                    heatmap_str = wifi_data[ap_name]
+                    heatmap_complex = np.array([complex(val) for val in heatmap_str], dtype=np.complex64)
+                    heatmap_reshaped = heatmap_complex.reshape(heatmap_dims)
+                    ap_heatmaps.append(np.abs(heatmap_reshaped))
+                else:
+                    ap_heatmaps.append(np.zeros(heatmap_dims, dtype=np.float32))
             
-            all_csi.append(csi_complex)
+            combined_heatmaps = np.stack(ap_heatmaps, axis=0)
+            all_heatmaps.append(combined_heatmaps)
+
+            all_aoa.append(float(wifi_data.get("AoA Ground Truth", 0.0)))
 
             gps_data = json.loads(row['GPS'])
             gps_coords = np.array([gps_data['latitude'], gps_data['longitude']], dtype=np.float32)
             all_gps.append(gps_coords)
 
-        return all_csi, all_gps
-    
-def fetch_selected_parquet_from_minio(bucket_name="wl-data"):
-    minio_client = Minio(
-        "128.205.218.189:9000",
-        access_key="admin",
-        secret_key="password",
-        secure=False,
-    )
+        return all_heatmaps, all_aoa, all_gps
 
-    folder = input("Enter MinIO folder name: ").strip()
-    prefix = f"{folder}/"
-    os.makedirs("data", exist_ok=True)
 
-    try:
-        objects = list(minio_client.list_objects(bucket_name, prefix=prefix, recursive=True))
-        parquet_files = [obj for obj in objects if obj.object_name.endswith(".parquet")]
 
-        if not parquet_files:
-            print("⚠️ No .parquet files found in that folder.")
-            return None
-
-        print("\n📄 Available .parquet files:")
-        for i, obj in enumerate(parquet_files):
-            print(f"[{i}] {obj.object_name}")
-
-        idx = int(input("\nSelect file index to download: ").strip())
-        selected_obj = parquet_files[idx]
-
-        print(f"\n📥 Downloading {selected_obj.object_name}")
-        response = minio_client.get_object(bucket_name, selected_obj.object_name)
-
-        local_filename = os.path.join("data", os.path.basename(selected_obj.object_name))
-        with open(local_filename, "wb") as f:
-            for chunk in response.stream(32 * 1024):
-                f.write(chunk)
-
-        print(f"✅ Saved to {local_filename}")
-        return local_filename
-
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return None
-
-# --- MAIN ENTRY ---
 if __name__ == "__main__":
-    path = fetch_selected_parquet_from_minio()
-    if path:
-        dataset = DLocDatasetV2(parquet_file_path=path)
-        print(f"✅ Loaded {len(dataset)} samples from {path}")
+    mode = input("Do you want to 'load' data or 'process' data? (type 'load' or 'process'): ").strip().lower()
+    if mode == "process":
+        splits = fetch_and_split_parquet_from_minio(max_workers=8)
+        if splits:
+            print("\n✅ Files have been split and downloaded as follows:")
+            print(f"Train files: {len(splits['train'])}")
+            print(f"Validation files: {len(splits['val'])}")
+            print(f"Test files: {len(splits['test'])}")
+        else:
+            print("❌ Processing failed; no files were split.")
+    else:
+        # Default is 'load' mode, which preserves the current functionality
+        path = fetch_selected_parquet_from_minio()
+        if path:
+            dataset = DLocDatasetV2(parquet_file_path=path)
+            print(f"✅ Loaded {len(dataset)} samples from {path}")
+        else:
+            print("❌ Failed to download a file from MinIO.")
+            exit(1)
+
+        print(f"Dataset length: {len(dataset)}")
+        
+        # Get the first sample
+        heatmaps, aoa_tensor, norm_gps = dataset[0]
+        print(f"Heatmaps shape: {heatmaps.shape}")  # Should be [3, 400, 360]
+        print(f"Aoa Ground Truth: {aoa_tensor}")
+        print(f"Normalized GPS: {norm_gps}")
+
+        # Visualize a heatmap (optional)
+        import matplotlib.pyplot as plt
+        
+        plt.figure(figsize=(10, 8))
+        plt.imshow(
+            heatmaps[0].numpy(),  # Display the first AP's heatmap
+            aspect='auto',
+            extent=[-30, 30, -90, 90],  # Based on DISTANCES and ANGLES from original code
+            origin='lower'
+        )
+        plt.colorbar(label='Magnitude')
+        plt.xlabel('Range (m)')
+        plt.ylabel('AoA (°)')
+        plt.title('Heatmap from WiFi-AP-1')
+        plt.show()

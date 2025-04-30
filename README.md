@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This repo provides code to receive and synchronize IMU, GPS, and WiFi data using an MQTT server. The synchronized data is then sent to a MinIO database, interacting with Elasticsearch to stream data on a local server, demonstrating how to interact with Elasticsearch to store, retrieve, and manage data effectively.
+This repo provides code to receive and synchronize IMU, GPS, and WiFi data using an MQTT server. The synchronized data is then sent to a MinIO database, interacting with Elasticsearch to stream data on a local server, demonstrating how to interact with Elasticsearch to store, retrieve, and manage data effectively. This repo is also responsible for calibrating collected Wi-Fi CSI data, utilizing signal processing techniques to create CSI Heatmaps that are then stored back into the MinIO server for further use in the DLoc Machine Learning Model.
 
 ## Table of Contents:
 
@@ -12,11 +12,12 @@ This repo provides code to receive and synchronize IMU, GPS, and WiFi data using
 4. [Usage](#usage)
 5. [Application Information](#application-information)
 6. [Set Up](#set-up)
-7. [Project Roadmap](#project-roadmap)
+7. [Branch READMEs](#branch-readmes)
+8. [Project Roadmap](#project-roadmap)
 
 ## Problem Definition
 
-We aim to build the back end of the Android mobile application by collecting the data from the app and passing it through a machine-learning model to improve the precision of the user's location on the map. On this current sprint, we will focus on passing the following data to the MQTT server:
+We aim to build the back end of the Android mobile application by collecting the data from the app and passing it through a machine-learning model to improve the precision of the user's location on the map. As of the Spring 2025 semester, we will focus on passing the following data to the MQTT server:
 
 - User ID
 - Timestamp
@@ -36,7 +37,7 @@ We aim to build the back end of the Android mobile application by collecting the
 - IP of the asus that received the packet
 
 This repo provides code to stream and synchronize IMU, GPS, and WiFi from the MQTT Wiloc server. It can be used in combination with our MinIO object storage server implementation to create a testbed for building-scale WiFi sensing applications.
-From here, the data will be queried and passed onto Elasticsearch, which is where we can apply the machine learning model. Once the data has been passed through Elasticsearch, we will store it in MinIO. Our goal is to make sure that real-life data can be passed through MQTT, Elasticsearch, and MinIO back and forth so that the user can receive the most accurate dataset in the application and improve the user's overall experience of using the map.
+From here, the data will be queried and passed into a CSI calibration script, which the calibrated data is then sent to the machine learning model. Once the data has been passed through Elasticsearch, we will store it in MinIO. Our goal is to make sure that real-life data can be passed through MQTT, MinIO, and the machine learning model back and forth so that the user can receive the most accurate dataset in the application and improve the user's overall experience of using the map.
 
 ## Demographics
 
@@ -53,41 +54,43 @@ Our current goals for the server-side aspect of this project include:
 - Gather and store user navigation data in a database.
 - Use stored reliable data for an A.I. training model.
 
-### Usage:
+## Usage:
 
-This project directory consists of five nodes:
+This project directory consists of the following nodes:
 
-- [minio_script](./src/minio_script.py):  This file allows the user to parse the received queries from MQTT and store them in MinIO in the format of parquet files. More specifically, the file will parse the information from MQTT, turn it into a parquet file, and use the receiving User ID and Timestamp from MQTT as the name of the file. In addition, the file can list all parquet files in the specified bucket to verify if the data has been stored or not and show the available dataset in the local MinIO database by using the User ID and Timestamp.
+- [minio_script](./src/minio_script.py): This file allows the user to parse the received queries from MQTT and store them in MinIO in the format of parquet files. More specifically, the file will parse the information from MQTT, turn it into a parquet file, and use the receiving User ID and Timestamp from MQTT as the name of the file. In addition, the file can list all parquet files in the specified bucket to verify if the data has been stored or not and show the available dataset in the local MinIO database by using the User ID and Timestamp.
 
-- [data_processing](./src/data_processing.py): This file will be the center of data manipulation and data filtering purposes. Later on, the project will be moving onto building AI models that requires filtered and modified datas. This file has implemented the following features:
-        - Filter out a set of data from MinIO based on the given hour range, minute range, and what type of column (the key of the dataframe) does the user wants.
-        - Add a new column of data into a list of given dataframes.
-        - Delete a column of data in the list of given dataframes.
-        - Updates the latest modified data from the local machine to the MinIO database.
+- [data_processing](./src/data_processing.py): This file will be the center of data manipulation and data filtering purposes. Later on, the project will be moving onto building AI models that requires filtered and modified datas. This file has implemented the following features: - Filter out a set of data from MinIO based on the given hour range, minute range, and what type of column (the key of the dataframe) does the user wants. - Add a new column of data into a list of given dataframes. - Delete a column of data in the list of given dataframes. - Updates the latest modified data from the local machine to the MinIO database.
 
-- [retrieve_data_from_minio](./src/retrieve_data_from_minio.py): This file acts as a bridge between MQTT and MinIO. In this file, we implemented the function that parses information from the MQTT subscriber and use the User ID and timestamp from the parsed information to receive parquet files from MinIO. In addition, we implement functions that get live-time User ID and timestamp whenever the application is running and we send the modified and parsed data back to MQTT to update the latest information to the map on the application. 
+- [retrieve_data_from_minio](./src/retrieve_data_from_minio.py): This file acts as a bridge between MQTT and MinIO. In this file, we implemented the function that parses information from the MQTT subscriber and use the User ID and timestamp from the parsed information to receive parquet files from MinIO. In addition, we implement functions that get live-time User ID and timestamp whenever the application is running and we send the modified and parsed data back to MQTT to update the latest information to the map on the application.
 
-- [sync_minio_and_mqtt](./src/sync_minio_and_mqtt.py): This file acts as a bridge between MQTT and MinIO. In this file, we implemented the function that parses information from the MQTT subscriber and use the User ID and timestamp from the parsed information to receive parquet files from MinIO. In addition, we implement functions that get live-time User ID and timestamp whenever the application is running and we send the modified and parsed data back to MQTT to update the latest information to the map on the application. 
-  
-The script connects to an existing MinIO server located in the Wiloc SSH, sending accelerometer, gyroscope, GPS, and WiFi data. This data is buffered and synchronized based on timestamps in the imu_gps_publisher.py script. The node also handles errors, and reconnection attempts, and shuts down gracefully when interrupted (Ctrl+C).
+- [sync_minio_and_mqtt](./src/sync_minio_and_mqtt.py): This file acts as a bridge between MQTT and MinIO. In this file, we implemented the function that parses information from the MQTT subscriber and use the User ID and timestamp from the parsed information to receive parquet files from MinIO. In addition, we implement functions that get live-time User ID and timestamp whenever the application is running and we send the modified and parsed data back to MQTT to update the latest information to the map on the application. The script connects to an existing MinIO server located in the Wiloc SSH, sending accelerometer, gyroscope, GPS, and WiFi data. This data is buffered and synchronized based on timestamps in the imu_gps_publisher.py script. The node also handles errors, and reconnection attempts, and shuts down gracefully when interrupted (Ctrl+C).
 
-- [imu_gps_publisher.py](./src/imu_gps_publisher.py): An MQTT script that connects to the MQTT server that is receiving WiFi data from 4 RPI's as well as receiving GPS and IMU data from an Android Phone running the WLMap application. It establishes an MQTT connection to the Wiloc SSH server (tcp://128.205.218.189:1883) and listens for incoming GPS, IMU, and WiFi data, extracting accelerometer and gyroscope XYZ values, latitude and longitude values, timestamps, and WiFI routing information. These values are then packaged into a MinIO bucket and published to the Wiloc MinIO server. The script also handles connection events, errors, and graceful shutdowns when receiving a termination signal (Ctrl+C).
+- [data_sync_3_AP.py](./src/data_sync_3_AP.py): A MQTT script that connects to the MQTT server that is receiving Wi-Fi data from up to 3 RPI's as well as receiving GPS and IMU data from an Android Phone running the WLMap application. It establishes an MQTT connection to the Wiloc SSH server (tcp://128.205.218.189:1883) and listens for incoming GPS, IMU, and WiFi data, extracting accelerometer and gyroscope XYZ values, latitude and longitude values, timestamps, and WiFI routing information. These values are then packaged into a MinIO bucket and published to the Wiloc MinIO server. The script also handles connection events, errors, and graceful shutdowns when receiving a termination signal (Ctrl+C).
 
-- [MQTT_Handler.py](./src/MQTT_Handler.py): A basic MQTT Handler class that can subscribe and publish to a server topic. This MQTT Handler class was made as a reference for how an MQTT Handler should be formatted, being used and modified in the imu_gps_publisher.py to receive IMU and GPS data, which is then published to a MinIO server being run on the Wiloc server. The format of this MQTT Handler can be used for future MQTT connections.
-  
+- [data_sync_6_AP.py](./src/data_sync_6_AP.py): The same as the [data_sync_3_AP.py](./src/data_sync_3_AP.py) script, but it accounts for six APs.
+
+- [MQTT_Handler.py](./src/MQTT_Handler.py): A basic MQTT Handler class that can subscribe and publish to a server topic. This MQTT Handler class was made as a reference for how an MQTT Handler should be formatted, being used and modified in the imu_gps_publisher.py to receive IMU and GPS data, which is then published to a MinIO server being run on the Wiloc server. The structure of this MQTT Handler can be used for future MQTT connections.
+
 - [Subscriber.py](./subscriber.py): A subscriber that creates an MQTT connection with a Raspberry PI in order to send Wifi data to the Wiloc SSH server (tcp://128.205.218.189:1883) This data is then synchronized and sent to MinIO to be retrieved upon user request. To get more information on retrieving and using the wifi data with the RPI please see https://github.com/ucsdwcsng/wiros_csi_node for more information about how to start the wiros node on the Rasberry Pi.
 
 - [key_specific_data_retrieval.py](./src/key_specific_data_retrieval.py): A script designed to automate the retrieval of datasets from a MinIO object storage server. It allows for secure connection, efficient data access, and basic preprocessing of datasets. This tool is useful for projects that involve large-scale data storage and retrieval, enabling smooth integration with machine-learning workflows or other analytical applications.
 
+- [retrieve_all.py](./src/retrieve_all.py): A python script that asks for the folder name within the MinIO bucket, printing all the contents of that folder to your output terminal.
 
+- [csi_calibration.py](/src/data_processing/csi_calibration.py): A python script that takes the name of a MinIO folder as user input, and parses the CSI Real and CSI Imaginary data within the given folder. The CSI data is then calibrated into 234x4 matrices, applying Fast Fourier Transformations to generate 400x360 heatmap matrices. These heatmaps are then sent back into the MinIO server for use in our machine learning model.
+
+- [constants.py](/src/data_processing/constants.py): A python script that contains subfrequency information based on the bandwidth of the WiFi CSI data being parsed. This file contains subfrequency information that is used to remove unnecessary subfreqeuncies from the CSI Imaginary and CSI Real data.
+
+- [pipeline_utils.py](/src/data_processing/pipeline_utils.py): A python script that contains helpful tools to parse and calibrate raw CSI data.
 
 ### Application Information:
 
 In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use an application called [MQTT](https://github.com/eclipse/mosquitto).
 
-- There are various ways to retrieve the Inertial Measurement(IMU) and GPS readings and from the phone. However, the imu_gps_publisher script achieves this by connecting the Android phone to the Wiloc MQTT server and publishing new IMU and GPS data every 500ms.
+- There are various ways to retrieve the Inertial Measurement(IMU) and GPS readings and from the phone. However, the data*sync*{X}\_AP scripts achieve this by connecting the Android phone to the Wiloc MQTT server and publishing new IMU, GPS, and Wi-Fi data every 500ms.
 
-### Set Up:
+## IMU/GPS/Wi-Fi Synchronization Startup:
 
 ### 1: Install MQTT and MinIO Python packages.
 
@@ -98,9 +101,9 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 
 ### 2: Run the WLMap Application.
 
-- Next travel to Android Studio and run the WLMap application. If you have not already cloned the WLMap repository, follow this [link](https://github.com/WS-UB/WLMap).
+- Next travel to Android Studio and connect your Google Pixel device to your computer via USB-C. If you have not already cloned the WLMap repository, follow this [link](https://github.com/WS-UB/WLMap).
 
-- If you are prompted to create an emulation Android device, select a "Google Pixel 7a."
+- Once connected, run the WLMap application.
 
 - Once running the WLMap application, select the "Data Collection" option on the main menu.
 
@@ -112,7 +115,8 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 
 ```
         ssh wiloc@128.205.218.189
-        wiloc@128.205.218.189's password: robot_wireless
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
 ```
 
 - When in the WILOC server, run the following command:
@@ -123,31 +127,134 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 
 ### 4: Run the IMU/GPS/WiFi synchronizer
 
-- If the WiFi router and Raspberry Pi are connected and sending WiFi data, run the imu_gps_WiFi_publisher.py script.
+1. In a separate terminal, ssh into the WILOC server.
 
-- If the WiFi router and Raspberry Pi are NOT connected, run the sync_WiFi_test.py script, and in a separate terminal, run the following commands.
+2. cd into the **_WL-Local-Server_** repo.
 
 ```
-        cd ~Pathname to your WL-Local-Server repo~
-        python3 WiFi_test.py
+        cd Documents/WL-Local-Server
+
 ```
 
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into the src directory
+
+```
+        cd src
+```
+
+3. If the WiFi router and Raspberry Pi are connected and sending WiFi data, run the imu_gps_WiFi_publisher.py script.
+
+```
+        python3 data_sync_AP_3.py
+```
+
+4. If the WiFi router and Raspberry Pi are NOT connected, run the data_sync_3_AP.py script, and in a separate terminal, run the following commands.
+
+```
+        cd ~Pathname to your WL-Local-Server repo~/src/tests
+        python3 sync_WiFi_test.py
+```
 
 ### 5: Run the MQTT Broker
 
-- To show the message that is sent from the phone application to the back-end server, SSH into the WILOC server and then run the following commands:
+- To show the messages that is sent from the phone application to the back-end server, SSH into the WILOC server and then run the following commands:
+
 ```
-        cd imu_publisher/
-        mosquitto_sub -h 128.205.218.189 -t 'test/topic'
+        mosquitto_sub -h 128.205.218.189 -t '/imu'
+        mosquitto_sub -h 128.205.218.189 -t '/gps'
 ```
 
 - To show the data that is sent back to the phone application via MQTT broker, SSH into the WILOC server and then run the following commands:
+
 ```
         cd imu_publisher/
         mosquitto_sub -h 128.205.218.189 -t 'coordinate/topic'
 ```
 
+## CSI Calibration Startup
 
+### 1: Start the MinIO Server.
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+- When in the WILOC server, run the following command:
+
+```
+        MINIO_ROOT_USER=admin MINIO_ROOT_PASSWORD=password ./minio server /mnt/data --console-address ":9001"
+```
+
+## 2: Select the MinIO data folder
+
+1. Go to the [MinIO Database](http://128.205.218.189:9000/).
+2. Select **_wl-bucket_**.
+3. Find the and copy the name of the folder you want to use (Usually ends in "\_DC").
+
+## 3: Start the calibration script.
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into the **_data_processing_** directory
+
+```
+        cd src/data_processing
+```
+
+5. Run the csi_calibration.py script.
+
+```
+        python3 csi_calibration.py
+```
+
+6. Enter the name of your data folder.
+
+```
+        Name of data folder?: {Your folder name}
+```
+
+7. The CSI Heatmaps will be sent to the "{Your folder name}\_DC_Heatmaps" folder on the MinIO Server.
+
+## Branch READMEs
+
+For specific inquiries on the specific feature branches, check below for the following links.
+
+1. [AoA_GroundTruth.md](/docs/AoA_GroundTruth.md)
+2. [csi_calibration.md](/docs/csi_calibration.md)
+3. [Data_Processing_Documentation.md](/docs/Data_Processing_Documentation.md)
+4. [debugging-harry.md](/docs/debugging-harry.md)
+5. [noROS_Synchronizer-Harry-Yufeng.md](/docs/noROS_Synchronizer-Harry-Yufeng.md)
+6. [phone_data_collection.md](/docs/phone_data_collection.md)
+7. [retrieve-specific-key-values.md](/docs/retrieve-specific-key-values.md)
 
 ## Project Roadmap
 
@@ -162,4 +269,4 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 - [x] Parse the message that is sent to the MQTT broker.
 - [x] Retrieve and read the parquet file based on the User ID and Timestamp that is sent from the MQTT broker.
 - [x] Get the GPS Coordinates from the read parquet file and send it back to the MQTT broker.
-- [x] Retrieve data for specific key requested. 
+- [x] Retrieve data for specific key requested.
