@@ -6,6 +6,7 @@ import os
 import json
 from minio import Minio
 from io import BytesIO
+from dotenv import load_dotenv
 import pandas as pd
 import matplotlib.pyplot as plt
 import shutil
@@ -42,11 +43,12 @@ OUT = os.getcwd()
 HISTOGRAM = []
 
 
+load_dotenv()
 minio_client = Minio(
-    "128.205.218.189:9000",  # Replace with your MinIO server address
-    access_key="admin",  # MinIO access key
-    secret_key="password",  # MinIO secret key
-    secure=False,  # Set to True if using HTTPS
+    os.getenv("MINIO_ENDPOINT"),
+    access_key=os.getenv("MINIO_ACCESS_KEY"),
+    secret_key=os.getenv("MINIO_SECRET_KEY"),
+    secure=os.getenv("MINIO_SECURE").lower() == "true",
 )
 
 
