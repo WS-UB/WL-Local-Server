@@ -6,7 +6,10 @@ import pandas as pd
 import json
 from dotenv import load_dotenv
 from gps_cali import normalize_gps
-from fetchdata import fetch_selected_parquet_from_minio, fetch_and_split_parquet_from_minio
+from fetchdata import (
+    fetch_selected_parquet_from_minio,
+    fetch_and_split_parquet_from_minio,
+)
 from minio import Minio
 import os
 from io import BytesIO
@@ -14,14 +17,16 @@ from io import BytesIO
 load_dotenv()
 BUCKET = os.getenv("MINIO_BUCKET")
 
+
 def get_minio_client():
     load_dotenv()
     return Minio(
         os.getenv("MINIO_ENDPOINT"),
         access_key=os.getenv("MINIO_ACCESS_KEY"),
         secret_key=os.getenv("MINIO_SECRET_KEY"),
-        secure=os.getenv("MINIO_SECURE", "false").lower() == "true"
+        secure=os.getenv("MINIO_SECURE", "false").lower() == "true",
     )
+
 
 class DLocDatasetV2(Dataset):
     """Loads one sample per parquet from MinIO, based on a CSV index."""
@@ -33,17 +38,17 @@ class DLocDatasetV2(Dataset):
             bucket_name: the MinIO bucket to pull from
             transform: optional torch transform for the heatmap tensor
         """
-    
+
         self.bucket = BUCKET
         self._client = None
-    
+
         self.index_df = pd.read_csv(index_csv)
-        if 'file_path' not in self.index_df:
+        if "file_path" not in self.index_df:
             raise ValueError(f"'file_path' column missing in {index_csv}")
 
         # Full list of MinIO object names, e.g. "my-folder/subfolder/my.parquet"
-        self.file_paths = self.index_df['file_path'].tolist()
-        #self.client = get_minio_client()
+        self.file_paths = self.index_df["file_path"].tolist()
+        # self.client = get_minio_client()
         self.transform = transform
 
         self.heatmap_dims = (400, 360)
@@ -52,6 +57,7 @@ class DLocDatasetV2(Dataset):
             "WiFi-AP-2_HEATMAP",
             "WiFi-AP-3_HEATMAP",
         ]
+
     @property
     def client(self):
         if self._client is None:
@@ -72,7 +78,7 @@ class DLocDatasetV2(Dataset):
         row = df.iloc[0]
 
         # 3) Parse WiFi JSON → heatmaps
-        wifi = json.loads(row['WiFi'])
+        wifi = json.loads(row["WiFi"])
         heatmaps = []
         for ap in self.ap_names:
             if ap in wifi:
@@ -92,20 +98,21 @@ class DLocDatasetV2(Dataset):
         aoa_tensor = torch.full((len(self.ap_names),), aoa, dtype=torch.float32)
 
         # 5) GPS → normalize → tensor
-        gps_raw = json.loads(row['GPS'])
+        gps_raw = json.loads(row["GPS"])
         gps_norm = normalize_gps(gps_raw)
         gps_tensor = torch.tensor(gps_norm, dtype=torch.float32)
 
+        return heatmap_tensor, aoa_tensor, gps_tensor
         return heatmap_tensor, aoa_tensor, gps_tensor
 
     @staticmethod
     def process_dataframe(df: pd.DataFrame):
         """
         Process a pandas DataFrame containing WiFi and GPS data
-        
+
         Args:
             df: Pandas DataFrame with WiFi and GPS columns
-            
+
         Returns:
             Tuple of (heatmaps, aoa values, gps coordinates)
         """
@@ -114,34 +121,38 @@ class DLocDatasetV2(Dataset):
         all_aoa = []
         heatmap_dims = (400, 360)
         ap_names = ["WiFi-AP-1_HEATMAP", "WiFi-AP-2_HEATMAP", "WiFi-AP-3_HEATMAP"]
+        all_aoa = []
+        heatmap_dims = (400, 360)
+        ap_names = ["WiFi-AP-1_HEATMAP", "WiFi-AP-2_HEATMAP", "WiFi-AP-3_HEATMAP"]
 
         for _, row in df.iterrows():
-            wifi_data = json.loads(row['WiFi'])
-            
+            wifi_data = json.loads(row["WiFi"])
+
             # Process each AP's heatmap
             ap_heatmaps = []
             for ap_name in ap_names:
                 if ap_name in wifi_data:
                     heatmap_str = wifi_data[ap_name]
-                    heatmap_complex = np.array([complex(val) for val in heatmap_str], dtype=np.complex64)
+                    heatmap_complex = np.array(
+                        [complex(val) for val in heatmap_str], dtype=np.complex64
+                    )
                     heatmap_reshaped = heatmap_complex.reshape(heatmap_dims)
                     ap_heatmaps.append(np.abs(heatmap_reshaped))
                 else:
                     ap_heatmaps.append(np.zeros(heatmap_dims, dtype=np.float32))
-            
+
             combined_heatmaps = np.stack(ap_heatmaps, axis=0)
             all_heatmaps.append(combined_heatmaps)
 
             all_aoa.append(float(wifi_data.get("AoA Ground Truth", 0.0)))
 
-            gps_data = json.loads(row['GPS'])
-            gps_coords = np.array([gps_data['latitude'], gps_data['longitude']], dtype=np.float32)
+            gps_data = json.loads(row["GPS"])
+            gps_coords = np.array(
+                [gps_data["latitude"], gps_data["longitude"]], dtype=np.float32
+            )
             all_gps.append(gps_coords)
 
         return all_heatmaps, all_aoa, all_gps
-    
-
-
 
 
 if __name__ == "__main__":
@@ -151,7 +162,6 @@ if __name__ == "__main__":
     csv_path = input("CSV index path (e.g. data/parquet_index.csv): ").strip()
 
     # 2) Hardcode the bucket name
-    
 
     # 3) Instantiate
     try:
@@ -180,7 +190,7 @@ if __name__ == "__main__":
     print(f" • Normalized GPS: lat={gps[0].item():.6f}, lon={gps[1].item():.6f}")
 
     # 6) Optional visualize first AP
-    if input("\nVisualize all 3 AP heatmaps? (y/n): ").strip().lower() == 'y':
+    if input("\nVisualize all 3 AP heatmaps? (y/n): ").strip().lower() == "y":
         ap_names = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
         fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
         for i, ax in enumerate(axes):
@@ -188,12 +198,11 @@ if __name__ == "__main__":
                 heatmap[i].numpy(),
                 origin="lower",
                 aspect="auto",
-                extent=[0, 5, -90, 90]
+                extent=[0, 5, -90, 90],
             )
             ax.set_title(f"Sample {idx_input} {ap_names[i]} Heatmap")
-            ax.set_xlabel('Range (m)')
+            ax.set_xlabel("Range (m)")
             if i == 0:
-                ax.set_ylabel('AoA (°)')
+                ax.set_ylabel("AoA (°)")
         plt.tight_layout()
         plt.show()
-    
