@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime
 from minio import Minio
 from dotenv import load_dotenv
+from pathlib import Path
 
 def get_minio_client():
     """Initialize and return a MinIO client using environment variables."""
@@ -32,80 +33,117 @@ def create_file_metadata(parquet_files, folder):
         })
     return pd.DataFrame(records)
 
-def split_and_save_data(metadata_df, base_path="data"):
+def load_or_create_csv(csv_path):
+    """Load existing CSV or create empty DataFrame if file doesn't exist."""
+    if Path(csv_path).exists():
+        df = pd.read_csv(csv_path, index_col="index")
+        # Ensure index starts from 1 (in case empty df was saved)
+        if not df.empty:
+            df.index = range(1, len(df) + 1)
+        return df
+    return pd.DataFrame(columns=["folder", "file_name", "file_path"])
+
+def prepare_and_save_df(df, csv_path):
+    """Prepare dataframe with proper indexing and save to CSV."""
+    df = df[["folder", "file_name", "file_path"]].copy()
+    df.reset_index(drop=True, inplace=True)
+    df.index = df.index + 1  # Start index at 1
+    df.index.name = "index"
+    df.to_csv(csv_path, index=True)
+    return df
+
+def update_datasets(new_df, base_path="data"):
     """
-    Split data into train (70%), test (20%), and validation (10%) sets
-    and save them as separate CSV files.
+    Update train, test, validation datasets with new data, avoiding duplicates.
+    If datasets don't exist, create new ones.
+    Maintains separate indexing for each dataset starting at 1.
     """
     try:
         # Ensure data directory exists
         os.makedirs(base_path, exist_ok=True)
         
-        # Shuffle the data
-        shuffled_df = metadata_df.sample(frac=1.0, random_state=42)
+        # Define dataset paths
+        dataset_paths = {
+            "train": os.path.join(base_path, "train_index.csv"),
+            "test": os.path.join(base_path, "test_index.csv"),
+            "validation": os.path.join(base_path, "validation_index.csv"),
+            "full": os.path.join(base_path, "parquet_index.csv")
+        }
         
-        # Calculate split sizes
-        total_size = len(shuffled_df)
-        train_size = int(0.7 * total_size)
-        test_size = int(0.2 * total_size)
+        # Load or create each dataset
+        datasets = {name: load_or_create_csv(path) for name, path in dataset_paths.items()}
         
-        # Split the data
-        train_df = shuffled_df.iloc[:train_size]
-        test_df = shuffled_df.iloc[train_size:train_size + test_size]
-        validation_df = shuffled_df.iloc[train_size + test_size:]
-
-        # Reset & name the integer index (starts at 1)
-        def prepare_and_save_df(df, name):
-            # keep only the 3 data columns
-            df = df[["folder", "file_name", "file_path"]]
+        # For full dataset, check for duplicates and append new data
+        full_df = datasets["full"]
+        if not full_df.empty:
+            # Filter out files that already exist in the full dataset
+            existing_files = set(full_df["file_path"])
+            new_df = new_df[~new_df["file_path"].isin(existing_files)]
             
-            # reset & name the integer index (starts at 1)
-            df.reset_index(drop=True, inplace=True)
-            df.index = df.index + 1
-            df.index.name = "index"
+            if new_df.empty:
+                print("ℹ️ All files from this folder are already indexed. No updates needed.")
+                return False
+        
+        # If we have new data to add
+        if not new_df.empty:
+            # Update full dataset
+            updated_full = pd.concat([full_df, new_df], ignore_index=True)
+            updated_full = prepare_and_save_df(updated_full, dataset_paths["full"])
+            print(f"✅ Updated full dataset CSV with {len(new_df)} new records. Total: {len(updated_full)}")
             
-            # Save to CSV
-            csv_path = os.path.join(base_path, f"{name}_index.csv")
-            df.to_csv(csv_path, index=True)
-            print(f"✅ {name.capitalize()} CSV created at {csv_path}, {len(df)} records.")
-            return csv_path
+            # Reshuffle the FULL dataset (not just new data) to maintain proper ratios
+            shuffled_df = updated_full.sample(frac=1.0, random_state=42)
+            total_size = len(shuffled_df)
+            train_size = int(0.7 * total_size)
+            test_size = int(0.2 * total_size)
+            
+            # Split the data
+            train_df = shuffled_df.iloc[:train_size]
+            test_df = shuffled_df.iloc[train_size:train_size + test_size]
+            validation_df = shuffled_df.iloc[train_size + test_size:]
+            
+            # Prepare and save each dataset with independent indexing
+            prepare_and_save_df(train_df, dataset_paths["train"])
+            prepare_and_save_df(test_df, dataset_paths["test"])
+            prepare_and_save_df(validation_df, dataset_paths["validation"])
+            
+            print(f"\n✅ Datasets updated successfully:")
+            print(f"- Train: {len(train_df)} records (index 1-{len(train_df)})")
+            print(f"- Test: {len(test_df)} records (index 1-{len(test_df)})")
+            print(f"- Validation: {len(validation_df)} records (index 1-{len(validation_df)})")
+            print(f"Split ratio: {len(train_df)/total_size:.1%}/{len(test_df)/total_size:.1%}/{len(validation_df)/total_size:.1%}")
+            
+            return True
         
-        # Save all three datasets
-        train_path = prepare_and_save_df(train_df, "train")
-        test_path = prepare_and_save_df(test_df, "test")
-        val_path = prepare_and_save_df(validation_df, "validation")
-        
-        print(f"\nData split successfully: {len(train_df)} train, {len(test_df)} test, {len(validation_df)} validation")
-        print(f"Split ratio: {len(train_df)/total_size:.1%}/{len(test_df)/total_size:.1%}/{len(validation_df)/total_size:.1%}")
-        
-        return True
+        return False
 
     except Exception as e:
-        print(f"Error splitting and saving data: {e}")
+        print(f"❌ Error updating datasets: {e}")
         return False
+
+def process_folder(minio_client, bucket_name, folder):
+    """Process a single folder and return new metadata DataFrame."""
+    parquet_files = get_parquet_files(minio_client, bucket_name, folder)
+    if not parquet_files:
+        print(f"⚠️ No parquet files found in '{folder}'.")
+        return None
+    
+    return create_file_metadata(parquet_files, folder)
 
 def main(bucket_name="wl-data"):
     try:
         minio_client = get_minio_client()
-        folder = input("Enter MinIO folder name to index: ").strip()
-        parquet_files = get_parquet_files(minio_client, bucket_name, folder)
-        if not parquet_files:
-            print(f"⚠️ No parquet files found in '{folder}'.")
-            return
-
-        metadata_df = create_file_metadata(parquet_files, folder)
-
-        # Instead of updating a single CSV, split and save as train/test/validation
-        split_and_save_data(metadata_df)
         
-        # Optional: Also save the full dataset as before
-        full_csv_path = os.path.join("data", "parquet_index.csv")
-        full_df = metadata_df[["folder", "file_name", "file_path"]]
-        full_df.reset_index(drop=True, inplace=True)
-        full_df.index = full_df.index + 1
-        full_df.index.name = "index"
-        full_df.to_csv(full_csv_path, index=True)
-        print(f"✅ Full dataset CSV saved at {full_csv_path}, {len(full_df)} records.")
+        while True:
+            folder = input("\nEnter MinIO folder name to index (or 'quit' to exit): ").strip()
+            if folder.lower() in ('quit', 'exit', 'q'):
+                break
+                
+            new_df = process_folder(minio_client, bucket_name, folder)
+            if new_df is not None:
+                update_datasets(new_df)
+                
+        print("\nIndexing complete. CSV files are up to date.")
 
     except Exception as e:
         print(f"❌ Error: {e}")
