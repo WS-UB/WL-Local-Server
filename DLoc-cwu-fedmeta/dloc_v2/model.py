@@ -262,7 +262,6 @@ class TrigAOAResNetModel(pl.LightningModule):
                                                 ap_locations=self.ap_metadata.ap_locations,
                                                 ap_orientations=self.ap_metadata.ap_orientations)
             self.logger.experiment.log_figure(figure_name='train_location_pred_vs_gt', figure=loc_plot)
-
         # reset metrics
         self.train_metrics.reset()
 
