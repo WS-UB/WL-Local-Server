@@ -7,8 +7,9 @@ from utils.geometry_utils import wrap_to_pi
 import pdb
 import numpy as np
 from gps_cali import reverse_normalization
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
 
 
 class MetricNames:
@@ -26,7 +27,7 @@ class MetricNames:
     LOCATION_ERROR_99_PERCENTILE = "location_error_99_percentile"
     LOCATION_PREDS = "location_preds"
     LOCATION_TARGETS = "location_targets"
-    LOCATION_CDF_ERROR = "location_cdf_error_figure"
+    # ERRORS_M_LOCATION = "errors_m_location"
    
 
 class AoAAccuracy(Metric):
@@ -90,14 +91,25 @@ class AoAAccuracy(Metric):
                 MetricNames.AOA_TARGETS: targets_tensor,
                 MetricNames.AOA_ERRORS_ALL: aoa_error_tensor}
 
+# metrics_calculator.py - Updated LocationAccuracy class
 class LocationAccuracy(Metric):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.add_state("preds", default=[])
         self.add_state("targets", default=[])
+        self.add_state("errors_m", default=[])  # Store errors directly
 
     def update(self, pred: ModelOutput, target: GTlabel) -> None:
-        # accumulate prediction and target location
+        # Calculate errors directly on GPU and store them
+        reversed_preds = reverse_normalization(pred.location[:, 0], pred.location[:, 1])
+        reversed_targets = reverse_normalization(target.location[:, 0], target.location[:, 1])
+        
+        errors = measure(reversed_preds[:, 0], 
+                        reversed_preds[:, 1], 
+                        reversed_targets[:, 0], 
+                        reversed_targets[:, 1])
+        
+        self.errors_m.append(errors)
         self.preds.append(pred.location)
         self.targets.append(target.location)
 
@@ -121,10 +133,6 @@ class LocationAccuracy(Metric):
                     reversed_targets_tensor[:, 0], 
                     reversed_targets_tensor[:, 1])
         
-        errors_np = errors_m.detach().cpu().numpy()
-        cdf_fig = plot_location_error_cdf(errors_np)
-        cdf_fig.savefig("location_cdf_error_figure.png", bbox_inches='tight')
-        
         mean_error = errors_m.mean()
         median_error = errors_m.median()
         std_error = errors_m.std()
@@ -138,8 +146,7 @@ class LocationAccuracy(Metric):
             MetricNames.LOCATION_ERROR_90_PERCENTILE: percentile_90_error,
             MetricNames.LOCATION_ERROR_99_PERCENTILE: percentile_99_error,
             MetricNames.LOCATION_PREDS: preds_tensor,
-            MetricNames.LOCATION_TARGETS: targets_tensor,
-            MetricNames.LOCATION_CDF_ERROR: cdf_fig
+            MetricNames.LOCATION_TARGETS: targets_tensor
         }
 
 # def measure(lat1, lon1, lat2, lon2):
@@ -195,26 +202,21 @@ def measure(lat1, lon1, lat2, lon2):
     return (r * c) * 1000  # Distance in meters
 
 def plot_location_error_cdf(errors: np.ndarray) -> plt.Figure:
-    """Plot CDF of location errors.
-    
-    Args:
-        errors: Array of location errors in meters.
-        
-    Returns:
-        Matplotlib figure object.
-    """
+    """Plot CDF of location errors with thread-safe approach."""
+    fig, ax = plt.subplots(figsize=(10, 6))
     sorted_errors = np.sort(errors)
     cdf = np.arange(1, len(sorted_errors)+1) / len(sorted_errors)
     
-    fig = plt.figure(figsize=(10, 6))
-    plt.plot(sorted_errors, cdf, linewidth=3)
-    plt.xlabel('Location Error (meters)', fontsize=12)
-    plt.ylabel('Cumulative Probability', fontsize=12)
-    plt.title('CDF of Location Errors', fontsize=14)
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.xlim(left=0)
+    ax.plot(sorted_errors, cdf, linewidth=3)
+    ax.set_xlabel('Location Error (meters)', fontsize=12)
+    ax.set_ylabel('Cumulative Probability', fontsize=12)
+    ax.set_title('CDF of Location Errors', fontsize=14)
+    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.set_xlim(left=0)
     plt.tight_layout()
-    return fig
+    fig.savefig('location_error_cdf.png', dpi=500)  # Save the figure
+    plt.cla()  # Clear the axis to avoid overlap in future plots
+    plt.close(fig)  # Close the figure to free memory
 
 if __name__ == "__main__":
     from torchmetrics import MetricCollection

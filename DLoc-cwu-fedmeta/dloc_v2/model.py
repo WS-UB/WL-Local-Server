@@ -8,12 +8,10 @@ from utils.schema import APMetadata, GTlabel, ModelOutput, LossTerms, AoAVisuali
 from utils.ray_intersection_solver import solve_ray_intersection_batch
 from utils.geometry_utils import cos_angle_sum, sin_angle_sum
 from torchmetrics import MetricCollection
-from metrics_calculator import AoAAccuracy, LocationAccuracy, MetricNames, measure, plot_location_error_cdf
+from metrics_calculator import AoAAccuracy, LocationAccuracy, MetricNames
 from utils.plot_utils import plot_location_pred_vs_gt, plot_aoa_visualization, plot_aoa_error_histograms, plot_gt_vs_pred_aoa
 from collections import deque
 import pdb
-import matplotlib.pyplot as plt
-
 
 ANGLE_LOSS_MULTIPLIER = 5
 
@@ -50,7 +48,7 @@ class ResNetEncoder(nn.Module):
             in_channels: Number of Conv channel in first conv layer. Defaults to 1.
         """
         super().__init__()
-        self.resnet_encoder = models.resnet34(pretrained=False)
+        self.resnet_encoder = models.resnet34(weights=None)
         self.resnet_output_dim = self.resnet_encoder.fc.in_features
 
         # Customize the first convolutional layer to accept `in_channels` channels
@@ -267,7 +265,7 @@ class TrigAOAResNetModel(pl.LightningModule):
 
         # reset metrics
         self.train_metrics.reset()
-        
+
     def validation_step(self, batch, batch_idx):
         model_pred, gt_label, val_loss = self._common_step(batch)
         self.val_metrics.update(model_pred, gt_label)
@@ -290,11 +288,6 @@ class TrigAOAResNetModel(pl.LightningModule):
         # compute metrics
         metrics_result = self.val_metrics.compute()
 
-        if MetricNames.LOCATION_CDF_ERROR in metrics_result:
-            cdf_plot = metrics_result[MetricNames.LOCATION_CDF_ERROR]
-            self.logger.experiment.log_figure(figure_name='val_location_cdf_error_figure', figure=cdf_plot)
-            plt.close(cdf_plot)  # Add this line to clean up memory
-
         # log AoA error metrics
         for ap_index in range(self.ap_metadata.n_aps):
             self.log_dict({f'val_aoa_error_mean_ap{ap_index}': metrics_result[MetricNames.AOA_ERROR_MEAN][ap_index].item(),
@@ -304,10 +297,7 @@ class TrigAOAResNetModel(pl.LightningModule):
         # log location error metrics
         for metrics_name, metrics_value in metrics_result.items():
             if metrics_name.startswith('location_error'):
-                self.log(f"val_{metrics_name}", metrics_value.item() if isinstance(metrics_value, torch.Tensor) else metrics_value)
-            elif metrics_name == MetricNames.LOCATION_CDF_ERROR:
-            # Skip logging the figure here - we'll handle it separately
-                continue
+                self.log(f"val_{metrics_name}", metrics_value.item())
 
         # log the visualization data very self.display_viz_data_epoch_interval epoch
 
@@ -341,10 +331,6 @@ class TrigAOAResNetModel(pl.LightningModule):
                                                       plot_in_degrees=True)
             self.logger.experiment.log_figure(figure_name='val_aoa_gt_vs_pred', figure=aoa_gt_vs_pred_plot)
 
-        if MetricNames.LOCATION_CDF_ERROR in metrics_result:
-            cdf_plot = metrics_result[MetricNames.LOCATION_CDF_ERROR]
-            self.logger.experiment.log_figure(figure_name='val_location_cdf_error', figure=cdf_plot)
-            
 
         # reset metrics
         self.val_metrics.reset()

@@ -148,6 +148,126 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 ```
 
 
+<<<<<<< Updated upstream
+=======
+### 1: Start the MinIO Server.
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+- When in the WILOC server, run the following command:
+
+```
+        MINIO_ROOT_USER=admin MINIO_ROOT_PASSWORD=password ./minio server /mnt/data --console-address ":9001"
+```
+
+## 2: Select the MinIO data folder
+
+1. Go to the [MinIO Database](http://128.205.218.189:9000/).
+2. Select **_wl-bucket_**.
+3. Find the and copy the name of the folder you want to use (Usually ends in "\_DC").
+
+## 3: Start the calibration script.
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into the **_data_processing_** directory
+
+```
+        cd src/data_processing
+```
+
+5. Run the csi_calibration.py script.
+
+```
+        python3 csi_calibration.py
+```
+
+6. Enter the name of your data folder.
+
+```
+        Name of data folder?: {Your folder name}
+```
+
+7. The CSI Heatmaps will be sent to the "{Your folder name}\_DC_Heatmaps" folder on the MinIO Server.
+
+## 4: Fetching parquet for ML model from MinIO database to csv. (REQUIRED FOR ML model)
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 fetch_data_csv.py
+```
+
+6. Enter the name of your data folder.
+
+```
+        Enter MinIO folder name to index: {{Your folder name}\_DC_Heatmaps}
+```
+
+
+## Branch READMEs
+
+For specific inquiries on the specific feature branches, check below for the following links.
+
+1. [AoA_GroundTruth.md](/docs/AoA_GroundTruth.md)
+2. [csi_calibration.md](/docs/csi_calibration.md)
+3. [Data_Processing_Documentation.md](/docs/Data_Processing_Documentation.md)
+4. [debugging-harry.md](/docs/debugging-harry.md)
+5. [noROS_Synchronizer-Harry-Yufeng.md](/docs/noROS_Synchronizer-Harry-Yufeng.md)
+6. [phone_data_collection.md](/docs/phone_data_collection.md)
+7. [retrieve-specific-key-values.md](/docs/retrieve-specific-key-values.md)
+>>>>>>> Stashed changes
 
 ## Project Roadmap
 
