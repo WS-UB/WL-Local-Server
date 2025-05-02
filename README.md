@@ -252,6 +252,124 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
         Enter MinIO folder name to index: {{Your folder name}\_DC_Heatmaps}
 ```
 
+## 5: Fetching parquet for ML model from MinIO database to csv. (REQUIRED FOR ML model)
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 fetch_data_csv.py
+```
+
+6. Enter the name of your data folder.
+
+```
+        Enter MinIO folder name to index (or 'quit' to exit): {{Your folder name}\_DC_Heatmaps}
+```
+7. Stop fetching 
+
+```
+        Enter MinIO folder name to index (or 'quit' to exit): quit
+```
+
+## 6: Run and train the ML model
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 main.py
+```
+
+## 7: Use the already trained model to predict location 
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 pred_loc.py
+```
+
+6. Enter the path of the parquet file
+
+```
+        Enter the path to the parquet file: 141849189164_DC_HEATMAPS/2025-04-10 15:12:12.51.parquet
+```
 
 ## Branch READMEs
 
@@ -264,6 +382,10 @@ For specific inquiries on the specific feature branches, check below for the fol
 5. [noROS_Synchronizer-Harry-Yufeng.md](/docs/noROS_Synchronizer-Harry-Yufeng.md)
 6. [phone_data_collection.md](/docs/phone_data_collection.md)
 7. [retrieve-specific-key-values.md](/docs/retrieve-specific-key-values.md)
+8. [research-Chongze-Yang-#123.md](/docs/research-Chongze-Yang-#123.md)
+9. [research-Yang-Chongze-Training-#128.md](/docs/research-Yang-Chongze-Training-#128.md)
+10. [research-display-location-data-#130.md](/docs/research-display-location-data-#130.md)
+
 
 ## Project Roadmap
 

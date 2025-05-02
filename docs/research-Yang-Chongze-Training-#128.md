@@ -1,14 +1,14 @@
-# WL-Local-Server Feature Branch: noROS_Synchronizer-Harry-Yufeng
+# WL-Local-Server Feature Branch: research/Yang-Chongze-Training-#128
 
 ## Description
 
-This branch is about making changes to the imu_gps_WiFi_publisher.py file to accomodate the new Wi-Fi CSI collector in [wiros_csi_node](https://github.com/WS-UB/wiros_csi_node)
+This branch is about getting all the heatmap parquet file name and path into a csv to index through by the ML model, and split them accordingly with training data, validation data, and test data
 
 ## Key Changes
 
 This feature introduces the following changes:
 
-- Changed index numbers for the Wi-Fi CSI data that is sent from the RPI's through MQTT.
+- We added the fetch_data_csv.py, which it creates 4 csv files one for training, one for validation, one for test, another one for all the partquet file name and paths
 
 ## Introduction
 
@@ -89,6 +89,15 @@ The script connects to an existing MinIO server located in the Wiloc SSH, sendin
 
 - [key_specific_data_retrieval.py](./src/key_specific_data_retrieval.py): A script designed to automate the retrieval of datasets from a MinIO object storage server. It allows for secure connection, efficient data access, and basic preprocessing of datasets. This tool is useful for projects that involve large-scale data storage and retrieval, enabling smooth integration with machine-learning workflows or other analytical applications.
 
+- [fetchdata.py](./WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/fetchdata.py): This is used by the modol.py to fetch data from MinIO database
+
+- [gps_cali.py](./WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/gps_cali.py): We use to normalize the gps data around Davis building, which also has the function to denormalize it 
+
+- [dataset.py](./WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/dataset.py): Correctly formats the fetched data according to the ML model input, and return the required data into the ML model
+
+- [fetch_data_csv.py](./WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/fetch_data_csv.py): which it creates 4 csv files one for training, one for validation, one for test, another one for all the partquet file name and paths, these csv files are for the ML model to index through 
+
+- [model.py](./WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/model.py): This is where the ML model is, all of it's layers and training steps, and plot graphs into comet(a website we use to log all the graphs being generated when running the model.py)
 
 
 ### Application Information:
@@ -260,6 +269,125 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 
 ```
         Enter MinIO folder name to index: {{Your folder name}\_DC_Heatmaps}
+```
+
+## 5: Fetching parquet for ML model from MinIO database to csv. (REQUIRED FOR ML model)
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 fetch_data_csv.py
+```
+
+6. Enter the name of your data folder.
+
+```
+        Enter MinIO folder name to index (or 'quit' to exit): {{Your folder name}\_DC_Heatmaps}
+```
+7. Stop fetching 
+
+```
+        Enter MinIO folder name to index (or 'quit' to exit): quit
+```
+
+## 6: Run and train the ML model
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 main.py
+```
+
+## 7: Use the already trained model to predict location 
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 pred_loc.py
+```
+
+6. Enter the path of the parquet file
+
+```
+        Enter the path to the parquet file: 141849189164_DC_HEATMAPS/2025-04-10 15:12:12.51.parquet
 ```
 
 ## Project Roadmap
