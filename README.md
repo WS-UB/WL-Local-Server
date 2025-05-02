@@ -147,9 +147,6 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
         mosquitto_sub -h 128.205.218.189 -t 'coordinate/topic'
 ```
 
-
-<<<<<<< Updated upstream
-=======
 ### 1: Start the MinIO Server.
 
 1. ssh into the WILOC server:
@@ -267,7 +264,6 @@ For specific inquiries on the specific feature branches, check below for the fol
 5. [noROS_Synchronizer-Harry-Yufeng.md](/docs/noROS_Synchronizer-Harry-Yufeng.md)
 6. [phone_data_collection.md](/docs/phone_data_collection.md)
 7. [retrieve-specific-key-values.md](/docs/retrieve-specific-key-values.md)
->>>>>>> Stashed changes
 
 ## Project Roadmap
 
