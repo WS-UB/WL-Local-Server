@@ -31,24 +31,24 @@ def get_minio_client():
 class DLocDatasetV2(Dataset):
     """Loads one sample per parquet from MinIO, based on a CSV index."""
 
-    def __init__(self, index_csv: str, transform=None):
+    def __init__(self, index_csv: str = None, parquet_path: str = None, transform=None):
         """
         Args:
-            index_csv: CSV with columns ['index','folder','file_name','file_path']
-            bucket_name: the MinIO bucket to pull from
-            transform: optional torch transform for the heatmap tensor
+            index_csv: CSV with file paths (for batch processing)
+            parquet_path: Direct path to a single parquet file (for inference)
+            transform: Normalization transform
         """
 
         self.bucket = BUCKET
         self._client = None
-
-        self.index_df = pd.read_csv(index_csv)
-        if "file_path" not in self.index_df:
-            raise ValueError(f"'file_path' column missing in {index_csv}")
+    
+        # self.index_df = pd.read_csv(index_csv)
+        # if 'file_path' not in self.index_df:
+        #     raise ValueError(f"'file_path' column missing in {index_csv}")
 
         # Full list of MinIO object names, e.g. "my-folder/subfolder/my.parquet"
-        self.file_paths = self.index_df["file_path"].tolist()
-        # self.client = get_minio_client()
+        # self.file_paths = self.index_df['file_path'].tolist()
+        #self.client = get_minio_client()
         self.transform = transform
 
         self.heatmap_dims = (400, 360)
@@ -58,6 +58,15 @@ class DLocDatasetV2(Dataset):
             "WiFi-AP-3_HEATMAP",
         ]
 
+        if parquet_path:
+            # For single-file inference
+            self.file_paths = [parquet_path]
+        elif index_csv:
+            # For batch processing (training/validation)
+            self.index_df = pd.read_csv(index_csv)
+            self.file_paths = self.index_df['file_path'].tolist()
+        else:
+            raise ValueError("Must provide either index_csv or parquet_path")
     @property
     def client(self):
         if self._client is None:
