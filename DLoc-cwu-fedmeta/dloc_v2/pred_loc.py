@@ -1,18 +1,19 @@
-from model import TrigAOAResNetModel
-from dataset import DLocDatasetV2
-from torch.utils.data import DataLoader
-from gps_cali import reverse_normalization
 import string
 import json
 import sys
+import random
+from model import TrigAOAResNetModel
+from dataset import DLocDatasetV2
+from torch.utils.data import DataLoader
+from gps_cali import pred_reverse_normalization
 from pathlib import Path
 # Go up from `dloc_v2` to `DLoc-owl-fedmeta`, then into `src`
 project_root = Path(__file__).resolve().parent.parent.parent  # Adjust based on actual structure
 src_path = str(project_root / "src")  # Path to `src` folder
 sys.path.append(src_path)
 from MQTT_Handler import MQTTHandler  # Adjust import based on actual structure
-import random
-import time
+from decimal import Decimal, getcontext
+getcontext().prec = 25  # Set precision for all Decimal operations
 
 # MQTT Configuration
 MQTT_BROKER = "128.205.218.189"  # Same as in nexcsiserver.py
@@ -43,15 +44,24 @@ def predict_gps(parquet_file_path):
     model.eval()
     for heatmap, _, _ in test_loader:
         output = model(heatmap)
-        denormalized_output = reverse_normalization(output.location[0][0], output.location[0][1])
-        loc = denormalized_output[0].item(), denormalized_output[1].item()
-        print("Predicted GPS:", loc)
-
-        # Prepare and publish MQTT message
+        norm_lat = Decimal(str(output.location[0][0].item()))
+        norm_lon = Decimal(str(output.location[0][1].item()))
+        
+        # High-precision denormalization
+        lat, lon = pred_reverse_normalization(
+            norm_lat, norm_lon
+        )
+        
+        # Format to 20 decimal places
+        lat_str = format(lat, '.20f')
+        lon_str = format(lon, '.20f')
+        print(f"Predicted GPS: {lat_str}, {lon_str}")
+        print(f"normalized GPS: {norm_lat}, {norm_lon}")
         location_data = {
-            "latitude": loc[0],
-            "longitude": loc[1],
-            "source": "pred_loc.py"
+            "latitude": lat_str,
+            "longitude": lon_str,
+            "source": "pred_loc.py",
+            "precision": "20 decimal places"
         }
         mqtt_handler.publish(mqtt_handler.client, json.dumps(location_data))
 
