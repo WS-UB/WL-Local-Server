@@ -1,57 +1,63 @@
 import os
 import random
+import pandas as pd
+from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 from minio import Minio
-from io import BytesIO
 from dotenv import load_dotenv
 
-def download_file_parallel(minio_client, bucket_name, obj, target_dir):
+
+def fetch_parquet_data(minio_client, bucket_name, obj):
     """
-    Download a single object from MinIO and save it to target_dir.
+    Fetch a single object from MinIO and return as pandas DataFrame.
     """
     try:
-        print(f"Downloading {obj.object_name}")
+        print(f"Fetching {obj.object_name}")
         response = minio_client.get_object(bucket_name, obj.object_name)
-        safe_filename = os.path.basename(obj.object_name)
-        local_filename = os.path.join(target_dir, safe_filename)
-        with open(local_filename, "wb") as f:
-            # Download the whole file at once for faster performance
-            f.write(response.read())
-        print(f"Saved to {local_filename}")
-        return local_filename
+        data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
+        print(f"Successfully fetched {obj.object_name}")
+        return data
     except Exception as e:
-        print(f"Failed to download {obj.object_name}: {e}")
+        print(f"Failed to fetch {obj.object_name}: {e}")
         return None
 
-def download_files_parallel(file_list, target_dir, minio_client, bucket_name, max_workers=8):
+
+def fetch_files_parallel(file_list, minio_client, bucket_name, max_workers=8):
     """
-    Download a list of files in parallel using ThreadPoolExecutor.
-    Returns a list of local file paths.
+    Fetch a list of files in parallel using ThreadPoolExecutor.
+    Returns a list of pandas DataFrames.
     """
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(executor.map(
-            lambda obj: download_file_parallel(minio_client, bucket_name, obj, target_dir), file_list))
-    local_paths = [path for path in results if path is not None]
-    return local_paths
+        results = list(
+            executor.map(
+                lambda obj: fetch_parquet_data(minio_client, bucket_name, obj),
+                file_list,
+            )
+        )
+    dataframes = [df for df in results if df is not None]
+    return dataframes
+
 
 def fetch_selected_parquet_from_minio(bucket_name="wl-data"):
     """
     Prompts for a MinIO folder and lists all .parquet files.
-    Allows the user to choose one file to download into the local "data" folder,
-    and then returns the local file path.
+    Allows the user to choose one file to fetch and process,
+    and then returns the data as a pandas DataFrame.
     """
     load_dotenv()
     minio_client = Minio(
         os.getenv("MINIO_ENDPOINT"),
         access_key=os.getenv("MINIO_ACCESS_KEY"),
         secret_key=os.getenv("MINIO_SECRET_KEY"),
-        secure=os.getenv("MINIO_SECURE").lower() == 'true',
+        secure=os.getenv("MINIO_SECURE").lower() == "true",
     )
     folder = input("Enter MinIO folder name: ").strip()
     prefix = f"{folder}/"
-    os.makedirs("data", exist_ok=True)
+
     try:
-        objects = list(minio_client.list_objects(bucket_name, prefix=prefix, recursive=True))
+        objects = list(
+            minio_client.list_objects(bucket_name, prefix=prefix, recursive=True)
+        )
         parquet_files = [obj for obj in objects if obj.object_name.endswith(".parquet")]
         if not parquet_files:
             print("⚠️ No .parquet files found in that folder.")
@@ -59,18 +65,25 @@ def fetch_selected_parquet_from_minio(bucket_name="wl-data"):
         print("\nAvailable .parquet files:")
         for i, obj in enumerate(parquet_files):
             print(f"[{i}] {obj.object_name}")
-        idx = int(input("\nSelect file index to download: ").strip())
+        idx = int(input("\nSelect file index to fetch: ").strip())
         selected_obj = parquet_files[idx]
-        print(f"\nDownloading {selected_obj.object_name}")
+        print(f"\nFetching {selected_obj.object_name}")
         response = minio_client.get_object(bucket_name, selected_obj.object_name)
-        local_filename = os.path.join("data", os.path.basename(selected_obj.object_name))
-        with open(local_filename, "wb") as f:
-            f.write(response.read())
-        print(f"Saved to {local_filename}")
-        return local_filename
+
+        # Read Parquet data into a DataFrame
+        data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
+
+        # Display sample of data (but return the DataFrame, not JSON)
+        print(f"Successfully fetched data from {selected_obj.object_name}")
+        print(f"Sample data (first few rows):")
+        print(data.head())
+
+        # Return the DataFrame directly
+        return data
     except Exception as e:
         print(f"❌ Error: {e}")
         return None
+
 
 def fetch_and_split_parquet_from_minio(bucket_name="wl-data", max_workers=8):
     """
@@ -79,68 +92,23 @@ def fetch_and_split_parquet_from_minio(bucket_name="wl-data", max_workers=8):
       - 70% for training
       - 20% for validation
       - 10% for testing
-    Downloads the files in parallel into local subdirectories:
-      - data/train_data_path
-      - data/val_data_path
-      - data/test_data_path
-    Returns a dictionary of local file paths for each group.
+    Fetches and processes the files in parallel in memory.
+    Returns a dictionary of DataFrames for each group.
     """
-    # load_dotenv()
-    # minio_client = Minio(
-    #     os.getenv("MINIO_ENDPOINT"),
-    #     access_key=os.getenv("MINIO_ACCESS_KEY"),
-    #     secret_key=os.getenv("MINIO_SECRET_KEY"),
-    #     secure=os.getenv("MINIO_SECURE").lower() == 'true',
-    # )
-    # folder = input("Enter MinIO folder name: ").strip()
-    # prefix = f"{folder}/"
-    # base_dir = "data"
-    # train_dir = os.path.join(base_dir, "train_data_path")
-    # val_dir = os.path.join(base_dir, "val_data_path")
-    # test_dir = os.path.join(base_dir, "test_data_path")
-    # os.makedirs(train_dir, exist_ok=True)
-    # os.makedirs(val_dir, exist_ok=True)
-    # os.makedirs(test_dir, exist_ok=True)
-    # try:
-    #     objects = list(minio_client.list_objects(bucket_name, prefix=prefix, recursive=True))
-    #     parquet_files = [obj for obj in objects if obj.object_name.endswith(".parquet")]
-    #     if not parquet_files:
-    #         print("⚠️ No .parquet files found in that folder.")
-    #         return None
-    #     random.shuffle(parquet_files)
-    #     total = len(parquet_files)
-    #     train_count = int(0.7 * total)
-    #     val_count = int(0.2 * total)
-    #     test_count = total - train_count - val_count
-    #     print(f"\nTotal files: {total} | Train: {train_count} | Val: {val_count} | Test: {test_count}")
-    #     train_files = parquet_files[:train_count]
-    #     val_files = parquet_files[train_count: train_count + val_count]
-    #     test_files = parquet_files[train_count + val_count:]
-    #     print("\nStarting parallel download for training files...")
-    #     train_paths = download_files_parallel(train_files, train_dir, minio_client, bucket_name, max_workers)
-    #     print("Training files download complete.\n")
-    #     print("Starting parallel download for validation files...")
-    #     val_paths = download_files_parallel(val_files, val_dir, minio_client, bucket_name, max_workers)
-    #     print("Validation files download complete.\n")
-    #     print("Starting parallel download for test files...")
-    #     test_paths = download_files_parallel(test_files, test_dir, minio_client, bucket_name, max_workers)
-    #     print("Test files download complete.\n")
-    #     return {"train": train_paths, "val": val_paths, "test": test_paths}
-    # except Exception as e:
-    #     print(f"❌ Error: {e}")
-    #     return None
     load_dotenv()
     minio_client = Minio(
         os.getenv("MINIO_ENDPOINT"),
         access_key=os.getenv("MINIO_ACCESS_KEY"),
         secret_key=os.getenv("MINIO_SECRET_KEY"),
-        secure=os.getenv("MINIO_SECURE").lower() == 'true',
+        secure=os.getenv("MINIO_SECURE").lower() == "true",
     )
     folder = input("Enter MinIO folder name: ").strip()
     prefix = f"{folder}/"
 
     # list remote parquet files
-    objects = list(minio_client.list_objects(bucket_name, prefix=prefix, recursive=True))
+    objects = list(
+        minio_client.list_objects(bucket_name, prefix=prefix, recursive=True)
+    )
     parquet_files = [obj for obj in objects if obj.object_name.endswith(".parquet")]
 
     total = len(parquet_files)
@@ -155,8 +123,10 @@ def fetch_and_split_parquet_from_minio(bucket_name="wl-data", max_workers=8):
     # shuffle and take only the first n
     random.shuffle(parquet_files)
     selected = parquet_files[:n]
-    print(f"\n→ Processing {n} files:\n" +
-          "\n".join(f"  • {obj.object_name}" for obj in selected))
+    print(
+        f"\n→ Processing {n} files:\n"
+        + "\n".join(f"  • {obj.object_name}" for obj in selected)
+    )
 
     # split counts
     train_count = int(0.7 * n)
@@ -164,27 +134,56 @@ def fetch_and_split_parquet_from_minio(bucket_name="wl-data", max_workers=8):
     test_count = n - train_count - val_count
     print(f"\nSplit into: Train={train_count}, Val={val_count}, Test={test_count}")
 
-    # prepare local dirs
-    base = "data"
-    train_dir = os.path.join(base, "train_data_path")
-    val_dir   = os.path.join(base, "val_data_path")
-    test_dir  = os.path.join(base, "test_data_path")
-    os.makedirs(train_dir, exist_ok=True)
-    os.makedirs(val_dir, exist_ok=True)
-    os.makedirs(test_dir, exist_ok=True)
-
     # assign slices
     train_files = selected[:train_count]
-    val_files   = selected[train_count: train_count + val_count]
-    test_files  = selected[train_count + val_count:]
+    val_files = selected[train_count : train_count + val_count]
+    test_files = selected[train_count + val_count :]
 
-    # download in parallel
-    print("\nDownloading training files...")
-    train_paths = download_files_parallel(train_files, train_dir, minio_client, bucket_name, max_workers)
-    print("Downloading validation files...")
-    val_paths   = download_files_parallel(val_files,   val_dir,   minio_client, bucket_name, max_workers)
-    print("Downloading test files...")
-    test_paths  = download_files_parallel(test_files,  test_dir,  minio_client, bucket_name, max_workers)
+    # fetch in parallel
+    print("\nFetching training files...")
+    train_data = fetch_files_parallel(
+        train_files, minio_client, bucket_name, max_workers
+    )
+    print("Fetching validation files...")
+    val_data = fetch_files_parallel(val_files, minio_client, bucket_name, max_workers)
+    print("Fetching test files...")
+    test_data = fetch_files_parallel(test_files, minio_client, bucket_name, max_workers)
+
+    # Display sample of fetched data
+    if train_data:
+        print("\nSample of training data:")
+        print(train_data[0].head())
 
     print("\n✅ Done.")
-    return {"train": train_paths, "val": val_paths, "test": test_paths}
+    return {"train": train_data, "val": val_data, "test": test_data}
+
+
+def display_dataframes(data_dict):
+    """
+    Display the fetched dataframes
+    """
+    for key, dataframes in data_dict.items():
+        print(f"\n=== {key.upper()} DATA ===")
+        for i, df in enumerate(dataframes):
+            print(f"\nDataset {i+1} (first 5 rows):")
+            print(df.head())
+
+
+if __name__ == "__main__":
+    option = input(
+        "Choose an option:\n1. Fetch a single parquet file\n2. Fetch and split multiple files\nEnter choice (1-2): "
+    )
+
+    if option == "1":
+        fetch_selected_parquet_from_minio()
+    elif option == "2":
+        result = fetch_and_split_parquet_from_minio()
+        display_option = (
+            input("\nWould you like to display all fetched data? (y/n): ")
+            .lower()
+            .strip()
+        )
+        if display_option == "y":
+            display_dataframes(result)
+    else:
+        print("Invalid option selected.")

@@ -9,8 +9,15 @@ from io import BytesIO
 from dotenv import load_dotenv
 import pandas as pd
 import matplotlib.pyplot as plt
-import shutil
+import sys
+import os
 
+# Add the path to the directory containing pred_loc.py
+dloc_path = "/home/wiloc/Documents/WL-Local-Server/DLoc-sp25-cse302/dloc_v2"
+sys.path.append(dloc_path)
+
+# Now you can import the predict_gps function
+# from pred_loc import predict_gps
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
@@ -43,6 +50,7 @@ OUT = os.getcwd()
 HISTOGRAM = []
 
 
+
 load_dotenv()
 minio_client = Minio(
     os.getenv("MINIO_ENDPOINT"),
@@ -52,6 +60,99 @@ minio_client = Minio(
 )
 
 
+def process_parquet(key: str, uid: str, bucket_name: str = "wl-data"):
+    resp = minio_client.get_object(bucket_name, key)
+    df = pd.read_parquet(BytesIO(resp.read()), engine="pyarrow")
+    pd.set_option("display.max_colwidth", None)
+
+    user_id = df["user_id"][0]
+    timestamp = df["timestamp"][0]
+    imu = df["IMU"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+    gps = df["GPS"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+    df["WiFi"] = df["WiFi"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+
+    gyro_xyz = imu[0]["gyro"]
+    accel_xyz = imu[0]["accel"]
+    lat = gps[0]["latitude"]
+    lon = gps[0]["longitude"]
+
+    folder = uid
+    heatmaps = []
+    csi_data = extract_csi_data(df["WiFi"][0])
+
+    for ap_name, (i_vals, r_vals) in csi_data.items():
+        raw = df["WiFi"][0][ap_name]
+        rx_ip = raw[11].split(": ")[1]
+        apLoc = json.loads(raw[12].split(": ")[1])
+        apL1 = json.loads(raw[13].split(": ")[1])
+        apL2 = json.loads(raw[14].split(": ")[1])
+
+        mat = scipy.io.loadmat(COMPENSATION_FILES[rx_ip])["csi"]
+        comp = np.array(mat)[0]
+        csi_i = np.array([float(x) for x in i_vals]).flatten()
+        csi_r = np.array([float(x) for x in r_vals]).flatten()
+
+        aoaGT, theta, phi, tof = generate_AoA_GT([lat, lon], apLoc, apL1, apL2, ap_name)
+        hm = calibrate_csi(ap_name, csi_i, csi_r, aoaGT, folder, timestamp, comp)
+        heatmaps.append(hm)
+
+    if len(heatmaps) == len(AP_NAMES):
+        send_heatmaps(
+            user_id, timestamp,
+            gyro_xyz, accel_xyz,
+            lat, lon, heatmaps,
+            apLoc, apL1, apL2,
+            theta, phi, tof, aoaGT
+        )
+
+        # Save result as processed parquet in _HEATMAPS folder
+        processed = pd.DataFrame([{
+            "user_id": f"{user_id}_HEATMAPS",
+            "timestamp": timestamp,
+            "IMU": json.dumps({"gyro": gyro_xyz, "accel": accel_xyz}),
+            "GPS": json.dumps({"latitude": lat, "longitude": lon}),
+            "WiFi": json.dumps({
+                "WiFi-AP-1_HEATMAP": heatmaps[0],
+                "WiFi-AP-2_HEATMAP": heatmaps[1],
+                "WiFi-AP-3_HEATMAP": heatmaps[2],
+                "AP Location": apLoc,
+                "AP L1": apL1,
+                "AP L2": apL2,
+                "Theta": theta,
+                "Phi": phi,
+                "ToF (m)": tof,
+                "AoA Ground Truth": aoaGT,
+            })
+        }])
+
+        buf = BytesIO()
+        processed.to_parquet(buf, index=False, engine="pyarrow")
+        buf.seek(0)
+
+        new_key = key.replace(uid, f"{uid}_HEATMAPS")
+        minio_client.put_object(bucket_name, new_key, buf, length=buf.getbuffer().nbytes)
+        print(f"    → Parquet saved to MinIO: {new_key}")
+    
+    processed_key = f"{uid}_HEATMAPS/{timestamp}.parquet"
+    out_buf = BytesIO()
+    df.to_parquet(out_buf, engine="pyarrow")
+    out_buf.seek(0)
+    minio_client.put_object("wl-data", processed_key, out_buf, length=len(out_buf.getvalue()))
+
+    # Step 6: Call predict_gps on processed path
+    predict_path = f"/home/wiloc/Documents/WL-Local-Server/minio-storage/wl-data/{processed_key}"
+    try:
+        # dynamically load predict_gps
+        import importlib.util
+        pred_loc_path = "/Users/yanghu/302 Project/WL-Local-Server/DLoc-cwu-fedmeta/dloc_v2/pred_loc.py"
+        spec = importlib.util.spec_from_file_location("pred_loc", pred_loc_path)
+        pred_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pred_mod)
+        predict_gps = pred_mod.predict_gps
+        predict_gps(processed_key)
+    except Exception as e:
+        print(f"❌ Error calling predict_gps: {e}") 
+        
 def extract_csi_data(wifi_data, ap_names=AP_NAMES):
     csi_data = {}
     for ap_name in ap_names:
@@ -62,99 +163,99 @@ def extract_csi_data(wifi_data, ap_names=AP_NAMES):
     return csi_data
 
 
-def retrieve_csi(bucket_name="wl-data"):
-    global AP_NAMES
-    # Retrieve the object from MinIO
-    folder = input("Name of data folder?: ")
-    folder_prefix = f"{folder}/"  # Ensure it ends with '/'
+# def retrieve_csi(bucket_name="wl-data"):
+#     global AP_NAMES
+#     # Retrieve the object from MinIO
+#     folder = input("Name of data folder?: ")
+#     folder_prefix = f"{folder}/"  # Ensure it ends with '/'
 
-    # List all files inside the folder
-    objects = minio_client.list_objects(
-        bucket_name, prefix=folder_prefix, recursive=True
-    )
+#     # List all files inside the folder
+#     objects = minio_client.list_objects(
+#         bucket_name, prefix=folder_prefix, recursive=True
+#     )
 
-    save_dir = os.path.join(
-        "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folder
-    )
-    if os.path.exists(save_dir):
-        shutil.rmtree(save_dir)  # Deletes the whole directory and contents
-    os.makedirs(save_dir)
+#     save_dir = os.path.join(
+#         "/Users/harrisonmoore/Developer/WL-Local-Server/heatmap_data", folder
+#     )
+#     if os.path.exists(save_dir):
+#         shutil.rmtree(save_dir)  # Deletes the whole directory and contents
+#     os.makedirs(save_dir)
 
-    for obj in objects:
-        if obj.object_name.endswith(".parquet"):
-            response = minio_client.get_object(bucket_name, obj.object_name)
-            data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
-            pd.set_option("display.max_colwidth", None)
-            user_id = data["user_id"][0]
-            timestamp = data["timestamp"][0]
-            imu = data["IMU"].apply(json.loads)
-            gps = data["GPS"].apply(json.loads)
-            data["WiFi"] = data["WiFi"].apply(json.loads)
+#     for obj in objects:
+#         if obj.object_name.endswith(".parquet"):
+#             response = minio_client.get_object(bucket_name, obj.object_name)
+#             data = pd.read_parquet(BytesIO(response.read()), engine="pyarrow")
+#             pd.set_option("display.max_colwidth", None)
+#             user_id = data["user_id"][0]
+#             timestamp = data["timestamp"][0]
+#             imu = data["IMU"].apply(json.loads)
+#             gps = data["GPS"].apply(json.loads)
+#             data["WiFi"] = data["WiFi"].apply(json.loads)
 
-            gyro_xyz = imu[0]["gyro"]
-            accel_xyz = imu[0]["accel"]
-            GPS_lat = gps[0]["latitude"]
-            GPS_long = gps[0]["longitude"]
+#             gyro_xyz = imu[0]["gyro"]
+#             accel_xyz = imu[0]["accel"]
+#             GPS_lat = gps[0]["latitude"]
+#             GPS_long = gps[0]["longitude"]
 
-            for wifi_data in data["WiFi"]:
-                heatmaps = []
-                csi_data = extract_csi_data(wifi_data)
-                for ap_name in AP_NAMES:
-                    rx_ip = wifi_data[ap_name][11].split(": ")[1]
-                    apLoc = json.loads(wifi_data[ap_name][12].split(": ")[1])
-                    apL1 = json.loads(wifi_data[ap_name][13].split(": ")[1])
-                    apL2 = json.loads(wifi_data[ap_name][14].split(": ")[1])
-                    csi_compensatedRaw = scipy.io.loadmat(
-                        COMPENSATION_FILES[rx_ip]
-                    )  # Load CSI compensation
-                    csi_compensated = np.array(csi_compensatedRaw["csi"])[
-                        0, :, :, :
-                    ]  # Reshape to 234x4x4
+#             for wifi_data in data["WiFi"]:
+#                 heatmaps = []
+#                 csi_data = extract_csi_data(wifi_data)
+#                 for ap_name in AP_NAMES:
+#                     rx_ip = wifi_data[ap_name][11].split(": ")[1]
+#                     apLoc = json.loads(wifi_data[ap_name][12].split(": ")[1])
+#                     apL1 = json.loads(wifi_data[ap_name][13].split(": ")[1])
+#                     apL2 = json.loads(wifi_data[ap_name][14].split(": ")[1])
+#                     csi_compensatedRaw = scipy.io.loadmat(
+#                         COMPENSATION_FILES[rx_ip]
+#                     )  # Load CSI compensation
+#                     csi_compensated = np.array(csi_compensatedRaw["csi"])[
+#                         0, :, :, :
+#                     ]  # Reshape to 234x4x4
 
-                    csi_i_flattened = np.array(
-                        [float(x) for x in csi_data[ap_name][0]]
-                    ).flatten()
-                    csi_r_flattened = np.array(
-                        [float(x) for x in csi_data[ap_name][1]]
-                    ).flatten()
+#                     csi_i_flattened = np.array(
+#                         [float(x) for x in csi_data[ap_name][0]]
+#                     ).flatten()
+#                     csi_r_flattened = np.array(
+#                         [float(x) for x in csi_data[ap_name][1]]
+#                     ).flatten()
 
-                    aoaGT, theta, phi, tof = generate_AoA_GT(
-                        [GPS_lat, GPS_long],
-                        apLoc=apLoc,
-                        apL1=apL1,
-                        apL2=apL2,
-                        apName=ap_name,
-                    )
+#                     aoaGT, theta, phi, tof = generate_AoA_GT(
+#                         [GPS_lat, GPS_long],
+#                         apLoc=apLoc,
+#                         apL1=apL1,
+#                         apL2=apL2,
+#                         apName=ap_name,
+#                     )
 
-                    heatmap = calibrate_csi(
-                        ap_name,
-                        csi_i_flattened,
-                        csi_r_flattened,
-                        aoaGT=aoaGT,
-                        folderName=folder,
-                        timestamp=timestamp,
-                        csi_compensated=csi_compensated,
-                    )
+#                     heatmap = calibrate_csi(
+#                         ap_name,
+#                         csi_i_flattened,
+#                         csi_r_flattened,
+#                         aoaGT=aoaGT,
+#                         folderName=folder,
+#                         timestamp=timestamp,
+#                         csi_compensated=csi_compensated,
+#                     )
 
-                    heatmaps.append(heatmap)
-                    if len(heatmaps) == 3:
-                        send_heatmaps(
-                            user_id=user_id,
-                            timestamp=timestamp,
-                            gyro_xyz=gyro_xyz,
-                            accel_xyz=accel_xyz,
-                            GPS_lat=GPS_lat,
-                            GPS_long=GPS_long,
-                            heatmaps=heatmaps,
-                            apLoc=apLoc,
-                            apL1=apL1,
-                            apL2=apL2,
-                            theta=theta,
-                            phi=phi,
-                            tof=tof,
-                            aoaGT=aoaGT,
-                        )
-    return
+#                     heatmaps.append(heatmap)
+#                     if len(heatmaps) == 3:
+#                         send_heatmaps(
+#                             user_id=user_id,
+#                             timestamp=timestamp,
+#                             gyro_xyz=gyro_xyz,
+#                             accel_xyz=accel_xyz,
+#                             GPS_lat=GPS_lat,
+#                             GPS_long=GPS_long,
+#                             heatmaps=heatmaps,
+#                             apLoc=apLoc,
+#                             apL1=apL1,
+#                             apL2=apL2,
+#                             theta=theta,
+#                             phi=phi,
+#                             tof=tof,
+#                             aoaGT=aoaGT,
+#                         )
+#     return
 
 
 def send_heatmaps(
@@ -306,7 +407,7 @@ def calibrate_csi(
         str(x) for x in AoARangeFFT.flatten().tolist()
     ]  # Converts all complex numbers to strings, needs to be converted back when parsing
     # plot_csiGraph(rangeFFT, ap_name)
-    plot_heatmaps(AoARangeFFT, aoaGT, ap_name, folderName, timestamp)
+    #plot_heatmaps(AoARangeFFT, aoaGT, ap_name, folderName, timestamp)
 
     rawAoA = peakFind(AoARangeFFT)
     print(f"rawAoA: {rawAoA}")
@@ -398,11 +499,14 @@ def plot_histogram(data, folderName):
     plt.show()
 
 
-def main():
-    retrieve_csi()
-    plot_histogram(HISTOGRAM, "histogram")
-    print("\nHeatmaps have been successfully generated!")
+# def main():
+#     retrieve_csi()
+#     plot_histogram(HISTOGRAM, "histogram")
+#     print("\nHeatmaps have been successfully generated!")
 
 
 if __name__ == "__main__":
-    main()
+    # quick manual test:
+    uid = input("folder? ")
+    key = f"{uid}/" + input("filename.parquet? ")
+    process_parquet(key, uid)
