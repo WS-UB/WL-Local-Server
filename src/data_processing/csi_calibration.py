@@ -32,9 +32,9 @@ os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 AP_NAMES = ["WiFi-AP-1", "WiFi-AP-2", "WiFi-AP-3"]
 COMPENSATION_FILES = {
-    "192.168.48.1": "src/data_processing/compensated_csi/48.1.mat",
-    "192.168.48.2": "src/data_processing/compensated_csi/48.2.mat",
-    "192.168.48.3": "src/data_processing/compensated_csi/48.3.mat",
+    "192.168.48.1": "/home/wiloc/Documents/WL-Local-Server/src/data_processing/compensated_csi/48.1.mat",
+    "192.168.48.2": "/home/wiloc/Documents/WL-Local-Server/src/data_processing/compensated_csi/48.2.mat",
+    "192.168.48.3": "/home/wiloc/Documents/WL-Local-Server/src/data_processing/compensated_csi/48.3.mat",
 }
 
 SUBCARRIER_SPACING = subcarrier_width  # Subcarrier spacing (312.5 kHz)
