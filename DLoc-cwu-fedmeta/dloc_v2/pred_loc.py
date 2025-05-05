@@ -1,10 +1,11 @@
+import string
+import json
+import sys
+import random
 from model import TrigAOAResNetModel
 from dataset import DLocDatasetV2
 from torch.utils.data import DataLoader
 from gps_cali import pred_reverse_normalization
-import string
-import json
-import sys
 from pathlib import Path
 # Go up from `dloc_v2` to `DLoc-owl-fedmeta`, then into `src`
 project_root = Path(__file__).resolve().parent.parent.parent  # Adjust based on actual structure
@@ -12,7 +13,6 @@ src_path = str(project_root / "src")  # Path to `src` folder
 sys.path.append(src_path)
 from MQTT_Handler import MQTTHandler  # Adjust import based on actual structure
 import random
-import time
 from decimal import Decimal, getcontext
 getcontext().prec = 25  # Set precision for all Decimal operations
 
