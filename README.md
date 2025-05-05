@@ -147,6 +147,7 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 ```
 
 - Check the status of MinIO again and the server should now be active.
+
 ### 4: Run the IMU/GPS/WiFi synchronizer
 
 1. In a separate terminal, ssh into the WILOC server.
@@ -266,9 +267,50 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
 
 7. The CSI Heatmaps will be sent to the "{Your folder name}\_DC_Heatmaps" folder on the MinIO Server.
 
+## 4: Fetching parquet for ML model from MinIO database to csv. (REQUIRED FOR ML model)
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 fetch_data_csv.py
+```
+
+6. Enter the name of your data folder.
+
+```
+        Enter MinIO folder name to index: {{Your folder name}\_DC_Heatmaps}
+```
+
 ## Branch READMEs
 
-For specific inquiries on the specific feature branches, check below for the following links.
+For inquiries on the specific feature branches, check below for the following links.
 
 1. [AoA_GroundTruth.md](/docs/AoA_GroundTruth.md)
 2. [csi_calibration.md](/docs/csi_calibration.md)
