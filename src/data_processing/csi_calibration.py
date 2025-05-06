@@ -133,12 +133,14 @@ def process_parquet(key: str, uid: str, bucket_name: str = "wl-data"):
         minio_client.put_object(bucket_name, new_key, buf, length=buf.getbuffer().nbytes)
         print(f"    → Parquet saved to MinIO: {new_key}")
     
+
     processed_key = f"{uid}_HEATMAPS/{timestamp}.parquet"
     out_buf = BytesIO()
-    df.to_parquet(out_buf, engine="pyarrow")
+    processed.to_parquet(out_buf, engine="pyarrow", index=False)
     out_buf.seek(0)
-    minio_client.put_object("wl-data", processed_key, out_buf, length=len(out_buf.getvalue()))
-
+    minio_client.put_object("wl-data", processed_key, out_buf, length=out_buf.getbuffer().nbytes)
+    
+    print("ready to call predict function")
     # Step 6: Call predict_gps on processed path
     predict_path = f"/home/wiloc/Documents/WL-Local-Server/minio-storage/wl-data/{processed_key}"
     try:

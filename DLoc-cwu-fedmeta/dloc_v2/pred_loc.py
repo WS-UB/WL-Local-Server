@@ -1,7 +1,10 @@
+print("================================================================================================================")
 import string
 import json
 import sys
 import random
+import os
+os.chdir('/home/wiloc/Documents/WL-Local-Server/DLoc-sp25-cse302/dloc_v2')
 from model import TrigAOAResNetModel
 from dataset import DLocDatasetV2
 from torch.utils.data import DataLoader
@@ -14,6 +17,7 @@ sys.path.append(src_path)
 from MQTT_Handler import MQTTHandler  # Adjust import based on actual structure
 from decimal import Decimal, getcontext
 getcontext().prec = 25  # Set precision for all Decimal operations
+
 
 # MQTT Configuration
 MQTT_BROKER = "128.205.218.189"  # Same as in nexcsiserver.py
@@ -32,6 +36,7 @@ def predict_gps(parquet_file_path):
     mqtt_handler = MQTTHandler(client_id, MQTT_BROKER, MQTT_PORT, PREDICTION_TOPIC)
     mqtt_handler.client = mqtt_handler.connect_mqtt()
     mqtt_handler.client.loop_start()  # Start network loop
+
 
     # Load the trained model
     model = TrigAOAResNetModel.load_from_checkpoint("saved_models/best_model.ckpt")
