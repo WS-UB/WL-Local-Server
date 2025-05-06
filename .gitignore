@@ -1,3 +1,4 @@
+*.env
 # custom gitignore
 *.DS_Store
 #Don't track content of these folders
@@ -15,6 +16,7 @@ matlab/test_*
 *.m~
 *.DS_Store
 *.yaml
+*.parquet
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -130,6 +132,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+dloc_v2/.env
 
 # Spyder project settings
 .spyderproject
@@ -187,3 +190,9 @@ codegen/
 
 # Octave session info
 octave-workspace
+
+# Ignore data files
+/dloc_v2/data
+
+#training ML models
+DLoc-cwu-fedmeta/dloc_v2/saved_models

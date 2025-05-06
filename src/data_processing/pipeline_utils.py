@@ -44,7 +44,7 @@ def extract_csi(bw, csi_i, csi_r, comp=None, apply_nts=True, valid_tx=None):
         csi = nts(csi, constants.subcarrier_frequencies[bw])
 
     if comp is not None:
-        csi *= comp
+        csi *= np.conjugate(comp)
 
     return csi
 

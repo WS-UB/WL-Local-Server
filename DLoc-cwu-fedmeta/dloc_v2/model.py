@@ -1,5 +1,4 @@
 """Model definition and training and validation logic."""
-import comet_ml
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -49,7 +48,7 @@ class ResNetEncoder(nn.Module):
             in_channels: Number of Conv channel in first conv layer. Defaults to 1.
         """
         super().__init__()
-        self.resnet_encoder = models.resnet34(pretrained=False)
+        self.resnet_encoder = models.resnet34(weights=None)
         self.resnet_output_dim = self.resnet_encoder.fc.in_features
 
         # Customize the first convolutional layer to accept `in_channels` channels
@@ -263,7 +262,6 @@ class TrigAOAResNetModel(pl.LightningModule):
                                                 ap_locations=self.ap_metadata.ap_locations,
                                                 ap_orientations=self.ap_metadata.ap_orientations)
             self.logger.experiment.log_figure(figure_name='train_location_pred_vs_gt', figure=loc_plot)
-
         # reset metrics
         self.train_metrics.reset()
 

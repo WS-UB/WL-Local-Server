@@ -32,7 +32,6 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))  
-# sys.path.append(os.path.abspath("../"))
 
 from dataset import DLocDatasetV2
 from dataset import fetch_selected_parquet_from_minio

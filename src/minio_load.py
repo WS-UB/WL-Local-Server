@@ -2,18 +2,22 @@ import rospy
 import subprocess
 import zmq
 import time
+import os
 from io import BytesIO
 from rf_msgs.msg import Wifi
 from minio import Minio
+from dotenv import load_dotenv
 from minio.error import S3Error
 
 # Create MinIO client
+load_dotenv()
 minio_client = Minio(
-    "128.205.218.189:9000",  # Replace with your MinIO server address
-    access_key="admin",  # MinIO access key
-    secret_key="password",  # MinIO secret key
-    secure=False,  # Set to True if using HTTPS
+    os.getenv("MINIO_ENDPOINT"),
+    access_key=os.getenv("MINIO_ACCESS_KEY"),
+    secret_key=os.getenv("MINIO_SECRET_KEY"),
+    secure=os.getenv("MINIO_SECURE").lower() == "true",
 )
+
 
 # Function to upload to MinIO
 def upload_to_minio(data, object_name, bucket_name="csi-data"):
