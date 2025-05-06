@@ -15,6 +15,7 @@ project_root = Path(__file__).resolve().parent.parent.parent  # Adjust based on 
 src_path = str(project_root / "src")  # Path to `src` folder
 sys.path.append(src_path)
 from MQTT_Handler import MQTTHandler  # Adjust import based on actual structure
+import random
 from decimal import Decimal, getcontext
 getcontext().prec = 25  # Set precision for all Decimal operations
 
