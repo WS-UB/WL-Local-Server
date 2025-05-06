@@ -1,3 +1,4 @@
+*.env
 # custom gitignore
 *.DS_Store
 #Don't track content of these folders
@@ -192,3 +193,6 @@ octave-workspace
 
 # Ignore data files
 /dloc_v2/data
+
+#training ML models
+DLoc-cwu-fedmeta/dloc_v2/saved_models
