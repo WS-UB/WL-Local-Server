@@ -63,7 +63,9 @@ This project directory consists of the following nodes:
 
 - [retrieve_data_from_minio](./src/retrieve_data_from_minio.py): This file acts as a bridge between MQTT and MinIO. In this file, we implemented the function that parses information from the MQTT subscriber and use the User ID and timestamp from the parsed information to receive parquet files from MinIO. In addition, we implement functions that get live-time User ID and timestamp whenever the application is running and we send the modified and parsed data back to MQTT to update the latest information to the map on the application.
 
-- [sync_minio_and_mqtt](./src/sync_minio_and_mqtt.py): This file acts as a bridge between MQTT and MinIO. In this file, we implemented the function that parses information from the MQTT subscriber and use the User ID and timestamp from the parsed information to receive parquet files from MinIO. In addition, we implement functions that get live-time User ID and timestamp whenever the application is running and we send the modified and parsed data back to MQTT to update the latest information to the map on the application. The script connects to an existing MinIO server located in the Wiloc SSH, sending accelerometer, gyroscope, GPS, and WiFi data. This data is buffered and synchronized based on timestamps in the imu_gps_publisher.py script. The node also handles errors, and reconnection attempts, and shuts down gracefully when interrupted (Ctrl+C).
+- [sync_minio_and_mqtt](./src/sync_minio_and_mqtt.py): This file acts as a bridge between MQTT and MinIO. In this file, we implemented the function that parses information from the MQTT subscriber and use the User ID and timestamp from the parsed information to receive parquet files from MinIO. In addition, we implement functions that get live-time User ID and timestamp whenever the application is running and we send the modified and parsed data back to MQTT to update the latest information to the map on the application.
+
+The script connects to an existing MinIO server located in the Wiloc SSH, sending accelerometer, gyroscope, GPS, and WiFi data. This data is buffered and synchronized based on timestamps in the imu_gps_publisher.py script. The node also handles errors, and reconnection attempts, and shuts down gracefully when interrupted (Ctrl+C).
 
 - [data_sync_3_AP.py](./src/data_sync_3_AP.py): A MQTT script that connects to the MQTT server that is receiving Wi-Fi data from up to 3 RPI's as well as receiving GPS and IMU data from an Android Phone running the WLMap application. It establishes an MQTT connection to the Wiloc SSH server (tcp://128.205.218.189:1883) and listens for incoming GPS, IMU, and WiFi data, extracting accelerometer and gyroscope XYZ values, latitude and longitude values, timestamps, and WiFI routing information. These values are then packaged into a MinIO bucket and published to the Wiloc MinIO server. The script also handles connection events, errors, and graceful shutdowns when receiving a termination signal (Ctrl+C).
 
@@ -71,9 +73,14 @@ This project directory consists of the following nodes:
 
 - [MQTT_Handler.py](./src/MQTT_Handler.py): A basic MQTT Handler class that can subscribe and publish to a server topic. This MQTT Handler class was made as a reference for how an MQTT Handler should be formatted, being used and modified in the imu_gps_publisher.py to receive IMU and GPS data, which is then published to a MinIO server being run on the Wiloc server. The structure of this MQTT Handler can be used for future MQTT connections.
 
+- [MQTT_Handler.py](./src/MQTT_Handler.py): A basic MQTT Handler class that can subscribe and publish to a server topic. This MQTT Handler class was made as a reference for how an MQTT Handler should be formatted, being used and modified in the imu_gps_publisher.py to receive IMU and GPS data, which is then published to a MinIO server being run on the Wiloc server. The format of this MQTT Handler can be used for future MQTT connections.
+
 - [Subscriber.py](./subscriber.py): A subscriber that creates an MQTT connection with a Raspberry PI in order to send Wifi data to the Wiloc SSH server (tcp://128.205.218.189:1883) This data is then synchronized and sent to MinIO to be retrieved upon user request. To get more information on retrieving and using the wifi data with the RPI please see https://github.com/ucsdwcsng/wiros_csi_node for more information about how to start the wiros node on the Rasberry Pi.
 
 - [key_specific_data_retrieval.py](./src/key_specific_data_retrieval.py): A script designed to automate the retrieval of datasets from a MinIO object storage server. It allows for secure connection, efficient data access, and basic preprocessing of datasets. This tool is useful for projects that involve large-scale data storage and retrieval, enabling smooth integration with machine-learning workflows or other analytical applications.
+
+
+### Application Information:
 
 - [retrieve_all.py](./src/retrieve_all.py): A python script that asks for the folder name within the MinIO bucket, printing all the contents of that folder to your output terminal.
 
@@ -82,8 +89,6 @@ This project directory consists of the following nodes:
 - [constants.py](/src/data_processing/constants.py): A python script that contains subfrequency information based on the bandwidth of the WiFi CSI data being parsed. This file contains subfrequency information that is used to remove unnecessary subfreqeuncies from the CSI Imaginary and CSI Real data.
 
 - [pipeline_utils.py](/src/data_processing/pipeline_utils.py): A python script that contains helpful tools to parse and calibrate raw CSI data.
-
-## Application Information:
 
 In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use an application called [MQTT](https://github.com/eclipse/mosquitto).
 
@@ -226,13 +231,16 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
         python3 csi_calibration.py
 ```
 
-6. Enter the name of your data folder.
+6. Enter the name of your data folder and the file name
 
 ```
-        Name of data folder?: {Your folder name}
+        folder?: {Your folder name}
+        filename.parquet?: {Your file name}
 ```
 
 7. The CSI Heatmaps will be sent to the "{Your folder name}\_DC_Heatmaps" folder on the MinIO Server.
+
+## ML model
 
 ### 4: Fetching parquet for ML model from MinIO database to csv. (REQUIRED FOR ML model)
 
@@ -275,6 +283,166 @@ In order to collect the accelerometer, gyroscope, GPS, and WiFI readings, we use
         Enter MinIO folder name to index: {{Your folder name}\_DC_Heatmaps}
 ```
 
+## 5: Fetching parquet for ML model from MinIO database to csv. (REQUIRED FOR ML model)
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 fetch_data_csv.py
+```
+
+6. Enter the name of your data folder.
+
+```
+        Enter MinIO folder name to index (or 'quit' to exit): {{Your folder name}\_DC_Heatmaps}
+```
+
+7. Stop fetching
+
+```
+        Enter MinIO folder name to index (or 'quit' to exit): quit
+```
+
+## 6: Run and train the ML model
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 main.py
+```
+
+## 7: Use the already trained model to predict location
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into **dloc_v2**
+
+```
+        cd DLoc-cwu-fedmeta\dloc_v2
+```
+
+5. Run the .py script.
+
+```
+        python3 pred_loc.py
+```
+
+6. Enter the path of the parquet file
+
+```
+        Enter the path to the parquet file: 141849189164_DC_HEATMAPS/2025-04-10 15:12:12.51.parquet
+```
+
+## 8: Auto run the calibration script once where is new parquet file sent to the minio server,and also sent the predict_gps to the MQTT
+
+1. ssh into the WILOC server:
+
+```
+        ssh wiloc@128.205.218.189
+        wiloc@128.205.218.189's password: Contact Dr. Roshan Ayyalasomayajula for the server's password.
+
+```
+
+2. cd into the **_WL-Local-Server_** repo.
+
+```
+        cd Documents/WL-Local-Server
+
+```
+
+3. Enable the Python virtual environment.
+
+```
+        source .venv/bin/activate
+```
+
+4. cd into the **_data_processing_** directory
+
+```
+        cd src/data_processing
+```
+
+5. Run the watch_parquet.py script.
+
+```
+        python3 watch_parquet.py
+```
+
+6. The CSI Heatmaps will be sent to the "{Your folder name}\_DC_Heatmaps" folder on the MinIO Server and also send the predit_gps to the mqtt.
+
 ## Branch READMEs
 
 For inquiries on the specific feature branches, check below for the following links.
@@ -286,6 +454,9 @@ For inquiries on the specific feature branches, check below for the following li
 5. [noROS_Synchronizer-Harry-Yufeng.md](/docs/noROS_Synchronizer-Harry-Yufeng.md)
 6. [phone_data_collection.md](/docs/phone_data_collection.md)
 7. [retrieve-specific-key-values.md](/docs/retrieve-specific-key-values.md)
+8. [research-Chongze-Yang-#123.md](/docs/research-Chongze-Yang-#123.md)
+9. [research-Yang-Chongze-Training-#128.md](/docs/research-Yang-Chongze-Training-#128.md)
+10. [research-display-location-data-#130.md](/docs/research-display-location-data-#130.md)
 
 ## Project Roadmap
 
